@@ -1,0 +1,681 @@
+<!DOCTYPE html>
+<html lang="de-CH">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Haushalt">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="theme-color" content="#f5f5f3">
+<title>Haushaltbuch</title>
+<style>
+:root{--bg:#f5f5f3;--card:#fff;--tx:#1d1d1f;--mut:#8a8a8e;--line:#e8e8e5;--acc:#1f4e5f;--pos:#2e7d4f;--neg:#b3392f}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font:16px/1.4 -apple-system,system-ui,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--tx);padding-bottom:calc(76px + env(safe-area-inset-bottom));-webkit-tap-highlight-color:transparent}
+header{position:sticky;top:0;background:rgba(245,245,243,.94);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);padding:calc(12px + env(safe-area-inset-top)) 18px 8px;display:flex;align-items:center;gap:10px;z-index:5}
+header h1{font-size:26px;font-weight:700;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+header button{font-size:17px;color:var(--acc);background:none;border:0;cursor:pointer}
+#sy{font-size:12px;color:var(--mut);white-space:nowrap}
+main{padding:0 14px 30px;max-width:720px;margin:0 auto}
+.card{background:var(--card);border-radius:14px;margin:8px 0;overflow:hidden}
+.row{display:flex;align-items:center;padding:12px 16px;border-bottom:1px solid var(--line);gap:12px}
+.row:last-child{border-bottom:0}
+.row .l{flex:1;min-width:0}
+.t{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sub{font-size:13px;color:var(--mut)}
+.amt{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.pos{color:var(--pos)}.neg{color:var(--neg)}
+.sec{font-size:13px;color:var(--mut);text-transform:uppercase;letter-spacing:.04em;margin:20px 4px 2px;display:flex;justify-content:space-between;align-items:center}
+.sec button{font-size:15px;color:var(--acc);background:none;border:0;text-transform:none;letter-spacing:0;cursor:pointer}
+.tap{cursor:pointer}.tap:active{background:#f0f0ee}
+.total{font-weight:700}
+.empty{color:var(--mut);text-align:center;padding:24px 16px;font-size:15px}
+.hero{padding:16px}
+.hero .big{font-size:30px;font-weight:700;font-variant-numeric:tabular-nums}
+.warn{background:#fff4e0;color:#8a5a00;border-radius:12px;padding:10px 14px;font-size:14px;margin:8px 0}
+nav{position:fixed;bottom:0;left:0;right:0;background:rgba(255,255,255,.96);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);border-top:1px solid var(--line);display:flex;padding-bottom:env(safe-area-inset-bottom);z-index:5}
+nav button{flex:1;background:none;border:0;padding:8px 0 6px;font-size:11px;color:var(--mut);display:flex;flex-direction:column;align-items:center;gap:2px;cursor:pointer}
+nav button.on{color:var(--acc)}
+nav svg{width:25px;height:25px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.fab{position:fixed;right:18px;bottom:calc(76px + env(safe-area-inset-bottom));width:56px;height:56px;border-radius:50%;background:var(--acc);color:#fff;border:0;font-size:30px;line-height:1;box-shadow:0 4px 14px rgba(0,0,0,.22);z-index:6;cursor:pointer}
+.btn{background:var(--acc);color:#fff;border:0;border-radius:10px;padding:12px 18px;font-size:16px;font-weight:600;cursor:pointer}
+.btn:disabled{opacity:.5}
+.btn.s2{background:#e6e6e3;color:var(--tx)}
+.btn.del{background:none;color:var(--neg);margin-left:auto}
+.btns{display:flex;gap:8px;flex-wrap:wrap;margin:14px 0 4px}
+.ov{position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:10;display:flex;align-items:flex-end;justify-content:center}
+.sheet{background:var(--bg);width:100%;max-width:560px;border-radius:16px 16px 0 0;max-height:94vh;overflow:auto;padding:18px 16px calc(18px + env(safe-area-inset-bottom))}
+@media(min-width:600px){.ov{align-items:center}.sheet{border-radius:16px}}
+.sheet h2{font-size:20px;margin-bottom:8px}
+.sheet p{font-size:15px;margin:6px 0}
+.sheet ol{font-size:14px;margin:6px 0 0 20px;color:#444}
+.sheet a{color:var(--acc)}
+label{display:block;font-size:13px;color:var(--mut);margin:12px 2px 4px}
+input,select{width:100%;font-size:17px;padding:11px 12px;border:1px solid var(--line);border-radius:10px;background:#fff;color:var(--tx);font-family:inherit}
+input:focus,select:focus{outline:2px solid var(--acc);outline-offset:-1px}
+.seg{display:flex;background:#e6e6e3;border-radius:10px;padding:3px;gap:3px;margin-top:10px}
+.seg button{flex:1;border:0;background:none;padding:8px 4px;border-radius:8px;font-size:15px;color:var(--tx);cursor:pointer}
+.seg button.on{background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.12);font-weight:600}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.err{color:var(--neg);font-size:14px;margin-top:10px;min-height:1em}
+.hint{font-size:13px;color:var(--mut);margin-top:6px}
+.kv{display:flex;justify-content:space-between;padding:7px 2px;border-bottom:1px solid var(--line);font-size:15px}
+.kv b{font-variant-numeric:tabular-nums}
+.pie{display:flex;gap:18px;align-items:center;padding:16px;flex-wrap:wrap}
+.pie svg{width:150px;height:150px;flex:none}
+.leg{flex:1;min-width:170px;font-size:14px}
+.leg div{display:flex;align-items:center;gap:8px;padding:2px 0}
+.leg span.n{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dot{width:10px;height:10px;border-radius:3px;flex:none}
+.toast{position:fixed;left:50%;top:calc(14px + env(safe-area-inset-top));transform:translateX(-50%);background:#1d1d1f;color:#fff;padding:10px 16px;border-radius:12px;font-size:14px;z-index:60;max-width:90vw}
+#lock{position:fixed;inset:0;background:var(--bg);z-index:50;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:30px}
+#lock h2{font-size:24px}
+#lock input{max-width:220px;text-align:center;font-size:28px;letter-spacing:.4em}
+#lock button{background:none;border:0;color:var(--acc);font-size:15px;margin-top:20px;cursor:pointer}
+</style>
+</head>
+<body>
+<header><button id="back" hidden>‹ Zurück</button><h1 id="title"></h1><span id="sy"></span><button id="hact" hidden></button></header>
+<main id="main"></main>
+<button class="fab" id="fab" title="Neue Buchung">+</button>
+<nav>
+ <button data-v="konten"><svg viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="13" rx="2"/><path d="M3 10h18M16 14.5h2"/></svg>Konten</button>
+ <button data-v="budget"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 3.5V12l6 6"/></svg>Budget</button>
+ <button data-v="bilanz"><svg viewBox="0 0 24 24"><path d="M12 4v16M5 20h14M4 8h16M7 8l-3 6h6zM17 8l-3 6h6z"/></svg>Bilanz</button>
+ <button data-v="mehr"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1"/></svg>Einstellungen</button>
+</nav>
+<input type="file" id="imp" accept=".json,application/json" hidden>
+<script>
+/* ===== Grundlagen ===== */
+const CUR=['CHF','USD','JPY','BTC','AU'];
+const CURNAME={CHF:'Schweizer Franken',USD:'US-Dollar',JPY:'Japanischer Yen',BTC:'Bitcoin',AU:'Gold (Unzen)'};
+const DEC={CHF:2,USD:2,JPY:0,BTC:8,AU:3};
+const RHY={12:'monatlich',4:'vierteljährlich',2:'halbjährlich',1:'jährlich'};
+const SIDE={buy:'Kauf',sell:'Verkauf',in:'Bestand'};
+const COL=['#1f4e5f','#c98b2b','#5b8c5a','#8e5572','#3d7ea6','#d1603d','#6c6f7f','#a4a65a','#4f6d7a','#b07d62','#7a9e9f'];
+const KEY='haushaltbuch-v1',RK='haushaltbuch-kurse',SK='haushaltbuch-sync',PK='haushaltbuch-pin',FN='haushaltbuch.enc.json';
+const blank=()=>({accounts:[],depots:[],budgets:[],tx:[],prices:{}});
+const lsGet=k=>{try{return JSON.parse(localStorage.getItem(k));}catch(e){return null;}};
+let Q=lsGet(RK)||{q:{},ts:null};               // Kurse: USD/JPY in CHF, BTC/AU in USD
+let D=load();
+function load(){
+ const d=lsGet(KEY);if(!d||!Array.isArray(d.accounts))return blank();
+ if(d.rates){ // Migration aus Version 1
+  const r=d.rates;if(!Q.ts&&r.USD){Q={q:{USD:r.USD,JPY:r.JPY,BTC:r.BTC?r.BTC/r.USD:undefined,AU:r.AU?r.AU/r.USD:undefined},ts:d.ratesTs};saveQ();}
+  delete d.rates;delete d.ratesTs;}
+ return Object.assign(blank(),d);}
+function saveQ(){localStorage.setItem(RK,JSON.stringify(Q));}
+function save(){localStorage.setItem(KEY,JSON.stringify(D));if(S.gistId){S.dirty=true;rev++;saveS();schedulePush();}}
+const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,7);
+const $=s=>document.querySelector(s);
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function fmtN(n,d=2){if(!isFinite(n)||Math.abs(n)<0.5*Math.pow(10,-d))n=0;const neg=n<0;let[i,f]=Math.abs(n).toFixed(d).split('.');i=i.replace(/\B(?=(\d{3})+(?!\d))/g,"'");return(neg?'-':'')+i+(f?'.'+f:'');}
+const fmt=(n,c)=>fmtN(n,DEC[c]??2)+' '+c;
+const fCHF=n=>fmtN(n,2);
+const fQty=n=>fmtN(n,6).replace(/\.?0+$/,'');
+const fPx=(n,c)=>fmtN(n,c==='JPY'?0:(Math.abs(n)<1&&n!==0?4:2));
+function num(s){if(typeof s==='number')return s;s=String(s??'').replace(/['’\s]/g,'').replace(',','.');const v=parseFloat(s);return isFinite(v)?v:NaN;}
+const round=(v,c)=>{const f=Math.pow(10,DEC[c]??2);return Math.round(v*f)/f;};
+const today=()=>{const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');};
+const dch=s=>s?s.split('-').reverse().join('.'):'';
+const dts=ts=>ts?new Date(ts).toLocaleString('de-CH',{dateStyle:'short',timeStyle:'short'}):'noch nie';
+const USDQ=c=>c==='BTC'||c==='AU';
+function rate(c){const q=Q.q||{};if(c==='CHF')return 1;if(c==='USD'||c==='JPY')return q[c]||0;return(q[c]||0)*(q.USD||0);}
+const chf=(a,c)=>a*rate(c);
+const usd=(a,c)=>a*((Q.q||{})[c]||0);
+const usdLine=(a,c)=>USDQ(c)&&Q.q[c]?'≈ USD '+fmtN(usd(a,c),2):'';
+const acc=id=>D.accounts.find(a=>a.id===id);
+const dep=id=>D.depots.find(a=>a.id===id);
+const bud=id=>D.budgets.find(a=>a.id===id);
+const byDateDesc=(a,b)=>(b.date||'').localeCompare(a.date||'')||(b.ts||0)-(a.ts||0);
+function toast(m){const t=document.createElement('div');t.className='toast';t.textContent=m;document.body.appendChild(t);setTimeout(()=>t.remove(),2800);}
+
+/* ===== Berechnungen ===== */
+function effect(t,id){
+ if(t.type==='b'&&t.acc===id)return t.amt;
+ if(t.type==='t'){let s=0;if(t.from===id)s-=t.amtFrom;if(t.to===id)s+=t.amtTo;return s;}
+ if(t.type==='w'&&t.acc===id&&t.side!=='in')return t.side==='buy'?-t.amtAcc:t.amtAcc;
+ return 0;}
+const txOf=id=>D.tx.filter(t=>(t.type==='b'&&t.acc===id)||(t.type==='t'&&(t.from===id||t.to===id))||(t.type==='w'&&t.side!=='in'&&t.acc===id));
+function bal(id){const a=acc(id);let s=a?(a.open||0):0;for(const t of D.tx)s+=effect(t,id);return s;}
+function positions(depId,exclude){
+ const m={};
+ D.tx.filter(t=>t.type==='w'&&t.dep===depId&&t!==exclude).sort((a,b)=>-byDateDesc(a,b)).forEach(t=>{
+  const p=m[t.sec]||(m[t.sec]={sec:t.sec,cur:t.cur,qty:0,cost:0,last:null,lastDate:'',fb:t.price});
+  if(t.side==='sell'){const avg=p.qty?p.cost/p.qty:0;p.cost-=avg*t.qty;p.qty-=t.qty;}
+  else{p.qty+=t.qty;p.cost+=t.qty*t.price;}
+  if(t.side!=='in'){p.last=t.price;p.lastDate=t.date;}
+  p.cur=t.cur;});
+ return Object.values(m).filter(p=>p.qty>1e-10).map(p=>{
+  const pr=D.prices[depId+'|'+p.sec];
+  if(pr&&(p.last==null||pr.date>=p.lastDate)){p.price=pr.price;p.pdate=pr.date;}
+  else if(p.last!=null){p.price=p.last;p.pdate=p.lastDate;}else{p.price=p.fb;p.pdate='';}
+  p.avg=p.cost/p.qty;p.value=p.qty*p.price;p.gain=p.value-p.cost;p.gainPct=p.cost?p.gain/p.cost*100:0;p.chf=chf(p.value,p.cur);return p;}).sort((a,b)=>b.chf-a.chf);}
+const depVal=id=>positions(id).reduce((s,p)=>s+p.chf,0);
+function depByCur(id){const r={};positions(id).forEach(p=>r[p.cur]=(r[p.cur]||0)+p.value);return r;}
+function bilanz(){
+ const A=[],P=[];
+ for(const a of D.accounts){const b=bal(a.id),c=chf(b,a.cur);if(b>1e-9)A.push({name:a.name,orig:b,cur:a.cur,chf:c});else if(b<-1e-9)P.push({name:a.name,orig:-b,cur:a.cur,chf:-c});}
+ for(const d of D.depots){const v=depVal(d.id);if(v>1e-9)A.push({name:d.name,sub:'Wertschriften-Depot',orig:v,cur:'CHF',chf:v});}
+ A.sort((x,y)=>y.chf-x.chf);P.sort((x,y)=>y.chf-x.chf);
+ const tA=A.reduce((s,x)=>s+x.chf,0),tP=P.reduce((s,x)=>s+x.chf,0);
+ return{A,P,tA,tP,net:tA-tP};}
+const budYear=b=>chf(b.amt*b.rhy,b.cur);
+function budIst(b){const y=String(new Date().getFullYear());let s=0;for(const t of D.tx)if(t.type==='b'&&t.bud===b.id&&(t.date||'').startsWith(y)){const a=acc(t.acc);if(a)s+=chf(t.amt,a.cur);}return b.kind==='out'?-s:s;}
+const missingRates=()=>CUR.filter(c=>c!=='CHF'&&!rate(c)&&(D.accounts.some(a=>a.cur===c)||D.budgets.some(b=>b.cur===c)||D.tx.some(t=>t.type==='w'&&t.cur===c)));
+
+/* ===== Kurse aus dem Internet ===== */
+async function getJSON(u){const r=await fetch(u,{cache:'no-store'});if(!r.ok)throw new Error(r.status);return r.json();}
+async function refreshRates(show){
+ const q={...Q.q};const ok=[];let paxg=null;
+ try{let j;try{j=await getJSON('https://api.frankfurter.dev/v1/latest?base=CHF&symbols=USD,JPY');}catch(e){j=await getJSON('https://api.frankfurter.app/latest?from=CHF&to=USD,JPY');}
+  if(j.rates.USD&&j.rates.JPY){q.USD=1/j.rates.USD;q.JPY=1/j.rates.JPY;ok.push('USD','JPY');}}catch(e){}
+ try{const j=await getJSON('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,pax-gold&vs_currencies=usd');
+  if(j.bitcoin&&j.bitcoin.usd){q.BTC=j.bitcoin.usd;ok.push('BTC');}if(j['pax-gold'])paxg=j['pax-gold'].usd;}catch(e){}
+ try{const j=await getJSON('https://api.gold-api.com/price/XAU');if(j.price){q.AU=j.price;ok.push('AU');}}catch(e){}
+ if(!ok.includes('AU')&&paxg){q.AU=paxg;ok.push('AU');}
+ if(!ok.includes('BTC')){try{const j=await getJSON('https://api.gold-api.com/price/BTC');if(j.price){q.BTC=j.price;ok.push('BTC');}}catch(e){}}
+ if(ok.length){Q={q,ts:new Date().toISOString()};saveQ();}
+ if(show)toast(ok.length===4?'Kurse aktualisiert':ok.length?'Teilweise aktualisiert: '+ok.join(', '):'Keine Verbindung – Kurse unverändert');
+ render();}
+const ratesStand=()=>dts(Q.ts);
+function rateText(c){const q=Q.q||{};
+ if(c==='USD')return q.USD?'1 USD = CHF '+fmtN(q.USD,4):'–';
+ if(c==='JPY')return q.JPY?'100 JPY = CHF '+fmtN(q.JPY*100,4):'–';
+ if(c==='BTC')return q.BTC?'1 BTC = USD '+fmtN(q.BTC,0):'–';
+ if(c==='AU')return q.AU?'1 Unze = USD '+fmtN(q.AU,2):'–';}
+
+/* ===== Kuchendiagramm (App) ===== */
+function pieItems(list){list=list.filter(x=>x.val>0).sort((a,b)=>b.val-a.val);if(list.length>10){const r=list.slice(9);list=list.slice(0,9);list.push({label:'Übrige',val:r.reduce((s,x)=>s+x.val,0)});}return list;}
+function pieHTML(list){
+ list=pieItems(list);const tot=list.reduce((s,x)=>s+x.val,0);if(tot<=0)return'';
+ let a=-Math.PI/2,p='';
+ list.forEach((it,i)=>{const fr=it.val/tot,c=COL[i%COL.length];
+  if(fr>0.9999){p+=`<circle cx="50" cy="50" r="48" fill="${c}"/>`;return;}
+  const a2=a+fr*2*Math.PI,x1=50+48*Math.cos(a),y1=50+48*Math.sin(a),x2=50+48*Math.cos(a2),y2=50+48*Math.sin(a2);
+  p+=`<path d="M50 50L${x1.toFixed(2)} ${y1.toFixed(2)}A48 48 0 ${fr>.5?1:0} 1 ${x2.toFixed(2)} ${y2.toFixed(2)}Z" fill="${c}"/>`;a=a2;});
+ return `<div class="card pie"><svg viewBox="0 0 100 100">${p}<circle cx="50" cy="50" r="27" fill="#fff"/></svg><div class="leg">${list.map((it,i)=>`<div><i class="dot" style="background:${COL[i%COL.length]}"></i><span class="n">${esc(it.label)}</span><b>${(it.val/tot*100).toFixed(1)}%</b></div>`).join('')}</div></div>`;}
+
+/* ===== Ansichten ===== */
+let V={v:'konten'};
+function go(v,id){V={v,id};render();window.scrollTo(0,0);}
+function head(title,back,act,actFn){$('#title').textContent=title;$('#back').hidden=!back;if(back)$('#back').onclick=back;const h=$('#hact');h.hidden=!act;if(act){h.textContent=act;h.onclick=actFn;}}
+const gainHTML=p=>`<span class="${p.gain<0?'neg':'pos'}">${p.gain>=0?'+':''}${p.gainPct.toFixed(1)}% · ${p.gain>=0?'+':''}${fmtN(p.gain,DEC[p.cur])}</span>`;
+
+function render(){
+ const m=$('#main');let h='';
+ document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('on',b.dataset.v===V.v||(V.v==='konto'||V.v==='depot')&&b.dataset.v==='konten'));
+ $('#fab').hidden=V.v==='mehr';
+ syncBadge();
+ const miss=missingRates();
+ const warn=miss.length?`<div class="warn">Kein Kurs für ${miss.join(', ')}. Unter <b>Einstellungen</b> aktualisieren oder manuell erfassen.</div>`:'';
+
+ if(V.v==='konten'){
+  head('Konten');
+  h+=`<div class="sec">Konten<button onclick="accForm()">+ Neu</button></div><div class="card">`;
+  h+=D.accounts.length?D.accounts.map(a=>{const b=bal(a.id),u=usdLine(b,a.cur);return `<div class="row tap" onclick="go('konto','${a.id}')"><div class="l"><div class="t">${esc(a.name)}</div><div class="sub">${CURNAME[a.cur]}</div></div><div class="amt"><span class="${b<0?'neg':''}">${fmt(b,a.cur)}</span>${u?`<div class="sub">${u}</div>`:''}</div></div>`;}).join(''):`<div class="empty">Noch keine Konten.<br>Tippe auf «+ Neu».</div>`;
+  h+=`</div><div class="sec">Wertschriften-Depots<button onclick="depForm()">+ Neu</button></div><div class="card">`;
+  h+=D.depots.length?D.depots.map(d=>{const bc=depByCur(d.id),k=Object.keys(bc);return `<div class="row tap" onclick="go('depot','${d.id}')"><div class="l"><div class="t">${esc(d.name)}</div><div class="sub">${(n=>n+(n===1?' Position':' Positionen'))(positions(d.id).length)}</div></div><div class="amt">${k.length?k.map((c,i)=>`<div class="${i?'sub':''}">${fmt(bc[c],c)}</div>`).join(''):'–'}</div></div>`;}).join(''):`<div class="empty">Noch keine Depots.</div>`;
+  h+=`</div>`;
+ }
+
+ else if(V.v==='konto'){
+  const a=acc(V.id);if(!a)return go('konten');
+  head(a.name,()=>go('konten'),'Bearbeiten',()=>accForm(a));
+  const b=bal(a.id),u=usdLine(b,a.cur);
+  h+=`<div class="card hero"><div class="sub">Saldo</div><div class="big ${b<0?'neg':''}">${fmt(b,a.cur)}</div>${u?`<div class="sub">${u}</div>`:''}</div>`;
+  const list=txOf(a.id).sort(byDateDesc);
+  h+=`<div class="sec">Buchungen</div><div class="card">`;
+  h+=list.length?list.map(t=>{const e=effect(t,a.id);let ti,su;
+   if(t.type==='b'){const bu=bud(t.bud);ti=t.text||(bu?bu.name:'Buchung');su=bu?bu.name:'';}
+   else if(t.type==='t'){const o=acc(t.from===a.id?t.to:t.from);ti=t.text||'Überweisung';su=(t.from===a.id?'→ ':'← ')+(o?o.name:'?');}
+   else{const d=dep(t.dep);ti=SIDE[t.side]+' '+t.sec;su=(d?d.name:'Depot')+' · '+fQty(t.qty)+' × '+fPx(t.price,t.cur)+' '+t.cur;}
+   return `<div class="row tap" onclick="txForm(D.tx.find(x=>x.id==='${t.id}'))"><div class="l"><div class="t">${esc(ti)}</div><div class="sub">${dch(t.date)}${su?' · '+esc(su):''}</div></div><div class="amt ${e<0?'neg':'pos'}">${e>0?'+':''}${fmtN(e,DEC[a.cur])}</div></div>`;}).join(''):`<div class="empty">Noch keine Buchungen.</div>`;
+  h+=`</div>`;
+  if(a.open)h+=`<div class="hint" style="padding:0 6px">Anfangssaldo: ${fmt(a.open,a.cur)}</div>`;
+ }
+
+ else if(V.v==='depot'){
+  const d=dep(V.id);if(!d)return go('konten');
+  head(d.name,()=>go('konten'),'Bearbeiten',()=>depForm(d));
+  const P=positions(d.id),bc=depByCur(d.id);
+  h+=warn+`<div class="card hero"><div class="sub">Depotwert</div>${Object.keys(bc).length?Object.keys(bc).map(c=>`<div class="big">${fmt(bc[c],c)}</div>`).join(''):'<div class="big">–</div>'}</div>`;
+  h+=`<div class="sec">Positionen<button onclick="txForm(null,{type:'w',dep:'${d.id}'})">+ Neu</button></div><div class="card">`;
+  h+=P.length?P.map(p=>`<div class="row tap" onclick='posForm("${d.id}",${esc(JSON.stringify(p.sec))})'><div class="l"><div class="t">${esc(p.sec)}</div><div class="sub">${fQty(p.qty)} Stk. · Ø ${fPx(p.avg,p.cur)} · Kurs ${fPx(p.price,p.cur)}</div></div><div class="amt">${fmt(p.value,p.cur)}<div class="sub">${gainHTML(p)}</div></div></div>`).join(''):`<div class="empty">Keine Positionen.</div>`;
+  h+=`</div>${P.length?'<div class="hint" style="padding:0 6px">Position antippen für Details und aktuellen Kurs.</div>':''}`;
+  const T=D.tx.filter(t=>t.type==='w'&&t.dep===d.id).sort(byDateDesc);
+  if(T.length){h+=`<div class="sec">Transaktionen</div><div class="card">`+T.map(t=>{const a=acc(t.acc);
+   const r=t.side==='in'?`<div class="amt">${fQty(t.qty)} Stk.</div>`:`<div class="amt ${t.side==='buy'?'neg':'pos'}">${t.side==='buy'?'-':'+'}${a?fmt(t.amtAcc,a.cur):''}</div>`;
+   return `<div class="row tap" onclick="txForm(D.tx.find(x=>x.id==='${t.id}'))"><div class="l"><div class="t">${SIDE[t.side]} ${esc(t.sec)}</div><div class="sub">${dch(t.date)} · ${fQty(t.qty)} × ${fPx(t.price,t.cur)} ${t.cur}${t.side==='in'?' · ohne Konto':a?' · '+esc(a.name):''}</div></div>${r}</div>`;}).join('')+`</div>`;}
+ }
+
+ else if(V.v==='budget'){
+  head('Budget',null,'PDF',budgetPDF);
+  const inc=D.budgets.filter(b=>b.kind==='in'),out=D.budgets.filter(b=>b.kind==='out');
+  const ti=inc.reduce((s,b)=>s+budYear(b),0),to=out.reduce((s,b)=>s+budYear(b),0);
+  const yr=new Date().getFullYear();
+  h+=warn+`<div class="card"><div class="row"><div class="l">Einnahmen</div><div class="amt">CHF ${fCHF(ti/12)}<div class="sub">pro Monat</div></div></div><div class="row"><div class="l">Ausgaben</div><div class="amt">CHF ${fCHF(to/12)}<div class="sub">pro Monat</div></div></div><div class="row total"><div class="l">Saldo</div><div class="amt ${ti-to<0?'neg':'pos'}">CHF ${fCHF((ti-to)/12)}<div class="sub">CHF ${fCHF(ti-to)} pro Jahr</div></div></div></div>`;
+  const rows=L=>L.map(b=>{const a=acc(b.acc),ist=budIst(b);return `<div class="row tap" onclick="budForm(bud('${b.id}'))"><div class="l"><div class="t">${esc(b.name)}</div><div class="sub">${fmt(b.amt,b.cur)} ${RHY[b.rhy]}${a?' · '+esc(a.name):''}</div></div><div class="amt">CHF ${fCHF(budYear(b)/12)}<div class="sub">Ist ${yr}: ${fCHF(ist)} / ${fCHF(budYear(b))}</div></div></div>`;}).join('');
+  h+=`<div class="sec">Einnahmen<button onclick="budForm(null,'in')">+ Neu</button></div><div class="card">${inc.length?rows(inc):'<div class="empty">Keine Einnahmen erfasst.</div>'}</div>`;
+  h+=`<div class="sec">Ausgaben<button onclick="budForm(null,'out')">+ Neu</button></div><div class="card">${out.length?rows(out):'<div class="empty">Keine Ausgaben erfasst.</div>'}</div>`;
+  if(out.length){h+=`<div class="sec">Anteile Ausgaben</div>`+pieHTML(out.map(b=>({label:b.name,val:budYear(b)})));}
+ }
+
+ else if(V.v==='bilanz'){
+  head('Bilanz',null,'PDF',bilanzPDF);
+  const B=bilanz();
+  const r=x=>{let s=x.sub||'';if(!s&&x.cur!=='CHF'){s=fmt(x.orig,x.cur);if(USDQ(x.cur)&&Q.q[x.cur])s+=' = USD '+fmtN(usd(x.orig,x.cur),2);}
+   return `<div class="row"><div class="l"><div class="t">${esc(x.name)}</div><div class="sub">${s}</div></div><div class="amt">${fCHF(x.chf)}</div></div>`;};
+  h+=warn+`<div class="sub" style="padding:0 6px">Per ${dch(today())} · in CHF · Kurse vom ${ratesStand()} <a href="#" onclick="refreshRates(true);return false" style="color:var(--acc)">aktualisieren</a></div>`;
+  h+=`<div class="sec">Aktiven</div><div class="card">${B.A.map(r).join('')||'<div class="empty">Keine Aktiven.</div>'}<div class="row total"><div class="l">Total Aktiven</div><div class="amt">${fCHF(B.tA)}</div></div></div>`;
+  h+=`<div class="sec">Passiven</div><div class="card">${B.P.map(r).join('')}<div class="row"><div class="l">Fremdkapital</div><div class="amt">${fCHF(B.tP)}</div></div><div class="row"><div class="l">Reinvermögen</div><div class="amt ${B.net<0?'neg':''}">${fCHF(B.net)}</div></div><div class="row total"><div class="l">Total Passiven</div><div class="amt">${fCHF(B.tP+B.net)}</div></div></div>`;
+  if(B.A.length)h+=`<div class="sec">Vermögensanteile</div>`+pieHTML(B.A.map(x=>({label:x.name,val:x.chf})));
+ }
+
+ else if(V.v==='mehr'){
+  head('Einstellungen');
+  const noCrypto=!(window.crypto&&crypto.subtle);
+  h+=`<div class="sec">Synchronisation PC ↔ iPhone</div><div class="card">`;
+  if(noCrypto)h+=`<div class="empty">Nur verfügbar, wenn die App über https geöffnet wird (z. B. GitHub Pages).</div>`;
+  else if(!S.gistId)h+=`<div class="row tap" onclick="syncSetup()"><div class="l">Einrichten<div class="sub">Verschlüsselt über einen geheimen GitHub-Gist</div></div><div class="amt sub">›</div></div>`;
+  else h+=`<div class="row"><div class="l">Status<div class="sub">${syncText()}</div></div></div><div class="row tap" onclick="syncNow()"><div class="l">Jetzt synchronisieren</div></div><div class="row tap" onclick="syncOff()"><div class="l neg">Synchronisation trennen</div></div>`;
+  h+=`</div>`;
+  h+=`<div class="sec">Sicherheit</div><div class="card">`;
+  if(noCrypto)h+=`<div class="empty">PIN-Sperre nur über https verfügbar.</div>`;
+  else if(!PIN)h+=`<div class="row tap" onclick="pinSet()"><div class="l">PIN-Sperre einschalten</div><div class="amt sub">Aus</div></div>`;
+  else h+=`<div class="row tap" onclick="pinSet(true)"><div class="l">PIN ändern</div><div class="amt sub">Ein</div></div><div class="row tap" onclick="pinOff()"><div class="l">PIN-Sperre ausschalten</div></div>`;
+  h+=`</div>`;
+  h+=`<div class="sec">Kurse<button onclick="refreshRates(true)">Aktualisieren</button></div><div class="card">`+CUR.filter(c=>c!=='CHF').map(c=>`<div class="row tap" onclick="rateForm('${c}')"><div class="l">${CURNAME[c]}</div><div class="amt">${rateText(c)}</div></div>`).join('')+`</div><div class="hint" style="padding:0 6px">Stand: ${ratesStand()}. Gold und Bitcoin in USD, umgerechnet in CHF wird erst in Bilanz und Budget. Quellen: Frankfurter (EZB), CoinGecko, gold-api.com. Antippen zum manuellen Ändern.</div>`;
+  h+=`<div class="sec">Daten</div><div class="card"><div class="row tap" onclick="backup()"><div class="l">Backup speichern</div><div class="sub">JSON</div></div><div class="row tap" onclick="$('#imp').click()"><div class="l">Backup laden</div></div><div class="row tap" onclick="wipe()"><div class="l neg">Alle Daten löschen</div></div></div>`;
+ }
+ m.innerHTML=h;}
+
+/* ===== Formulare ===== */
+function modal(html,mount,fixed){const ov=document.createElement('div');ov.className='ov';ov.innerHTML=`<div class="sheet">${html}</div>`;const close=()=>ov.remove();if(!fixed)ov.addEventListener('click',e=>{if(e.target===ov)close();});document.body.appendChild(ov);mount(ov.querySelector('.sheet'),close);}
+const seg=(n,opts,v)=>`<div class="seg" data-n="${n}" data-v="${v}">${opts.map(([k,l])=>`<button type="button" data-k="${k}" class="${k===v?'on':''}">${l}</button>`).join('')}</div>`;
+function segInit(root,cb){root.querySelectorAll('.seg').forEach(s=>{if(s.dataset.b)return;s.dataset.b=1;s.querySelectorAll('button').forEach(b=>b.onclick=()=>{segSet(s,b.dataset.k);cb&&cb(s.dataset.n,b.dataset.k);});});}
+function segSet(s,k){s.dataset.v=k;s.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x.dataset.k===k));}
+const segVal=(root,n)=>root.querySelector(`.seg[data-n="${n}"]`).dataset.v;
+const accOpts=sel=>D.accounts.map(a=>`<option value="${a.id}" ${a.id===sel?'selected':''}>${esc(a.name)} (${a.cur})</option>`).join('');
+const curOpts=sel=>CUR.map(c=>`<option value="${c}" ${c===sel?'selected':''}>${c} – ${CURNAME[c]}</option>`).join('');
+function budOpts(sel){const g=(k,l)=>{const b=D.budgets.filter(x=>x.kind===k);return b.length?`<optgroup label="${l}">${b.map(x=>`<option value="${x.id}" ${x.id===sel?'selected':''}>${esc(x.name)}</option>`).join('')}</optgroup>`:'';};return `<option value="">– wählen –</option>`+g('out','Ausgaben')+g('in','Einnahmen');}
+const btns=(del,okText='Speichern')=>`<div class="err"></div><div class="btns"><button class="btn" id="ok">${okText}</button><button class="btn s2" id="cx">Abbrechen</button>${del?'<button class="btn del" id="dl">Löschen</button>':''}</div>`;
+
+function accForm(a){
+ const e=!!a;a=a||{name:'',cur:'CHF',open:0};const has=e&&txOf(a.id).length>0;
+ modal(`<h2>${e?'Konto bearbeiten':'Neues Konto'}</h2>
+ <label>Name</label><input id="n" value="${esc(a.name)}" placeholder="z. B. Privatkonto">
+ <label>Währung</label><select id="c" ${has?'disabled':''}>${curOpts(a.cur)}</select>${has?'<div class="hint">Währung ist fix, da bereits Buchungen bestehen.</div>':''}
+ <label>Anfangssaldo</label>${seg('sg',[['+','Guthaben'],['-','Schuld']],(a.open||0)<0?'-':'+')}
+ <input id="o" inputmode="decimal" style="margin-top:8px" value="${a.open?Math.abs(a.open):''}" placeholder="0">${btns(e)}`,(sh,close)=>{
+  const q=s=>sh.querySelector(s);segInit(sh);q('#cx').onclick=close;if(!e)q('#n').focus();
+  q('#ok').onclick=()=>{const n=q('#n').value.trim(),o=q('#o').value.trim()?num(q('#o').value):0;
+   if(!n)return q('.err').textContent='Bitte einen Namen eingeben.';if(isNaN(o))return q('.err').textContent='Anfangssaldo ungültig.';
+   const v={name:n,cur:q('#c').value,open:(segVal(sh,'sg')==='-'?-1:1)*Math.abs(o)};
+   if(e)Object.assign(a,v);else D.accounts.push({id:uid(),...v});save();close();render();};
+  if(e)q('#dl').onclick=()=>{if(has||D.tx.some(t=>t.type==='w'&&t.acc===a.id))return q('.err').textContent='Konto hat Buchungen und kann nicht gelöscht werden.';if(D.budgets.some(b=>b.acc===a.id))return q('.err').textContent='Konto ist in Budget-Positionen hinterlegt.';if(confirm('Konto löschen?')){D.accounts=D.accounts.filter(x=>x!==a);save();close();go('konten');}};
+ });}
+
+function depForm(d){
+ const e=!!d;d=d||{name:''};const has=e&&D.tx.some(t=>t.type==='w'&&t.dep===d.id);
+ modal(`<h2>${e?'Depot bearbeiten':'Neues Wertschriften-Depot'}</h2><label>Name</label><input id="n" value="${esc(d.name)}" placeholder="z. B. Depot Swissquote">${btns(e)}`,(sh,close)=>{
+  const q=s=>sh.querySelector(s);q('#cx').onclick=close;if(!e)q('#n').focus();
+  q('#ok').onclick=()=>{const n=q('#n').value.trim();if(!n)return q('.err').textContent='Bitte einen Namen eingeben.';if(e)d.name=n;else D.depots.push({id:uid(),name:n});save();close();render();};
+  if(e)q('#dl').onclick=()=>{if(has)return q('.err').textContent='Depot hat Transaktionen und kann nicht gelöscht werden.';if(confirm('Depot löschen?')){D.depots=D.depots.filter(x=>x!==d);save();close();go('konten');}};
+ });}
+
+function budForm(b,kind){
+ const e=!!b;b=b||{name:'',kind:kind||'out',amt:'',cur:'CHF',rhy:12,acc:''};const used=e&&D.tx.some(t=>t.bud===b.id);
+ modal(`<h2>${e?'Budget-Position bearbeiten':'Neue Budget-Position'}</h2>
+ ${seg('k',[['out','Ausgabe'],['in','Einnahme']],b.kind)}
+ <label>Name</label><input id="n" value="${esc(b.name)}" placeholder="z. B. Miete">
+ <div class="g2"><div><label>Betrag</label><input id="a" inputmode="decimal" value="${b.amt}"></div><div><label>Währung</label><select id="c">${CUR.map(c=>`<option ${c===b.cur?'selected':''}>${c}</option>`).join('')}</select></div></div>
+ <label>Rhythmus</label><select id="r">${[12,4,2,1].map(r=>`<option value="${r}" ${r==b.rhy?'selected':''}>${RHY[r]}</option>`).join('')}</select>
+ <label>Zahlung in der Regel über Konto</label><select id="ac"><option value="">– kein Standardkonto –</option>${accOpts(b.acc)}</select>${btns(e)}`,(sh,close)=>{
+  const q=s=>sh.querySelector(s);segInit(sh);q('#cx').onclick=close;if(!e)q('#n').focus();
+  q('#ok').onclick=()=>{const n=q('#n').value.trim(),a=num(q('#a').value);
+   if(!n)return q('.err').textContent='Bitte einen Namen eingeben.';if(!(a>=0))return q('.err').textContent='Betrag ungültig.';
+   const v={name:n,kind:segVal(sh,'k'),amt:a,cur:q('#c').value,rhy:+q('#r').value,acc:q('#ac').value};
+   if(e)Object.assign(b,v);else D.budgets.push({id:uid(),...v});save();close();render();};
+  if(e)q('#dl').onclick=()=>{if(used)return q('.err').textContent='Position ist Buchungen zugewiesen und kann nicht gelöscht werden.';if(confirm('Budget-Position löschen?')){D.budgets=D.budgets.filter(x=>x!==b);save();close();render();}};
+ });}
+
+/* Position: Details + aktueller Kurs */
+function posForm(depId,sec){
+ const p=positions(depId).find(x=>x.sec===sec);if(!p)return;const c=p.cur;
+ modal(`<h2>${esc(sec)}</h2>
+ <div class="kv"><span>Anzahl</span><b>${fQty(p.qty)}</b></div>
+ <div class="kv"><span>Ø Einstandspreis</span><b>${fPx(p.avg,c)} ${c}</b></div>
+ <div class="kv"><span>Einstandswert</span><b>${fmt(p.cost,c)}</b></div>
+ <div class="kv"><span>Marktwert</span><b id="mw">${fmt(p.value,c)}</b></div>
+ <div class="kv"><span>Gewinn / Verlust</span><b id="gv">${gainHTML(p)}</b></div>
+ <label>Aktueller Kurs (${c})</label><input id="p" inputmode="decimal" value="${p.price}">
+ <div class="hint">${p.pdate?'Kurs vom '+dch(p.pdate):''}</div>
+ <div class="err"></div><div class="btns"><button class="btn" id="ok">Speichern</button><button class="btn s2" id="tr">Kauf / Verkauf</button><button class="btn s2" id="cx">Schliessen</button></div>`,(sh,close)=>{
+  const q=s=>sh.querySelector(s);q('#cx').onclick=close;
+  q('#p').oninput=()=>{const v=num(q('#p').value);if(!(v>=0))return;const x={...p,value:p.qty*v};x.gain=x.value-p.cost;x.gainPct=p.cost?x.gain/p.cost*100:0;q('#mw').textContent=fmt(x.value,c);q('#gv').innerHTML=gainHTML(x);};
+  q('#ok').onclick=()=>{const v=num(q('#p').value);if(!(v>=0))return q('.err').textContent='Kurs ungültig.';D.prices[depId+'|'+sec]={price:v,date:today()};save();close();render();};
+  q('#tr').onclick=()=>{close();txForm(null,{type:'w',dep:depId,sec,cur:c});};
+ });}
+
+function rateForm(c){
+ const usdq=USDQ(c),jpy=c==='JPY',cur=(Q.q||{})[c];
+ const lbl=usdq?`1 ${c==='AU'?'Unze Gold':'BTC'} = ? USD`:jpy?'100 JPY = ? CHF':'1 USD = ? CHF';
+ const val=cur?(jpy?cur*100:cur):'';
+ modal(`<h2>Kurs ${CURNAME[c]}</h2><label>${lbl}</label><input id="r" inputmode="decimal" value="${val}"><div class="hint">Wird beim nächsten automatischen Abruf überschrieben.</div>${btns(false)}`,(sh,close)=>{
+  const q=s=>sh.querySelector(s);q('#cx').onclick=close;
+  q('#ok').onclick=()=>{const v=num(q('#r').value);if(!(v>0))return q('.err').textContent='Kurs ungültig.';Q.q[c]=jpy?v/100:v;saveQ();close();render();};
+ });}
+
+/* Buchung / Überweisung / Wertschrift */
+function txForm(t,preset={}){
+ if(!D.accounts.length&&!(preset.type==='w'||(t&&t.type==='w'))){toast('Zuerst ein Konto erstellen.');return accForm();}
+ const edit=!!t;let type=t?t.type:(preset.type||'b');
+ const first=preset.acc||(V.v==='konto'?V.id:(D.accounts[0]||{}).id);
+ modal(`<h2>${edit?'Bearbeiten':'Neu'}</h2>${edit?'':seg('type',[['b','Buchung'],['t','Überweisung'],['w','Wertschrift']],type)}<div id="fb"></div>${btns(edit)}`,(sh,close)=>{
+  const q=s=>sh.querySelector(s);const fb=q('#fb');let collect;
+  const cur=id=>(acc(id)||{}).cur||'';
+  function body(){
+   q('.err').textContent='';q('#ok').hidden=false;
+   if(type==='b'){
+    const v=t&&t.type==='b'?t:{date:today(),acc:first,amt:'',text:'',bud:''};
+    fb.innerHTML=`<label>Datum</label><input id="d" type="date" value="${v.date}">
+    <label>Budget-Position</label><select id="bu">${budOpts(v.bud)}</select>${D.budgets.length?'':'<div class="hint">Noch keine Budget-Positionen – zuerst im Tab «Budget» erfassen.</div>'}
+    <label>Konto</label><select id="ac">${accOpts(v.acc)}</select>
+    ${seg('dir',[['out','Ausgabe'],['in','Einnahme']],v.amt>0?'in':'out')}
+    <label>Betrag (<span id="cu"></span>)</label><input id="am" inputmode="decimal" value="${v.amt?Math.abs(v.amt):''}"><div class="hint" id="us"></div>
+    <label>Text</label><input id="tx" value="${esc(v.text)}" placeholder="optional">`;
+    const upd=()=>{const c=cur(q('#ac').value);q('#cu').textContent=c;const a=num(q('#am').value);q('#us').textContent=a>0?usdLine(a,c):'';};upd();
+    q('#ac').onchange=upd;q('#am').oninput=upd;
+    q('#bu').onchange=()=>{const b=bud(q('#bu').value);if(!b)return;if(b.acc&&acc(b.acc))q('#ac').value=b.acc;segSet(sh.querySelector('.seg[data-n="dir"]'),b.kind);upd();};
+    collect=()=>{const a=num(q('#am').value);
+     if(!q('#bu').value)return'Bitte eine Budget-Position wählen.';if(!(a>0))return'Bitte einen Betrag eingeben.';
+     return{type:'b',date:q('#d').value||today(),acc:q('#ac').value,bud:q('#bu').value,amt:(segVal(sh,'dir')==='out'?-1:1)*round(a,cur(q('#ac').value)),text:q('#tx').value.trim()};};
+   }
+   else if(type==='t'){
+    if(D.accounts.length<2){fb.innerHTML='<div class="empty">Für eine Überweisung braucht es mindestens zwei Konten.</div>';q('#ok').hidden=true;return;}
+    const v=t&&t.type==='t'?t:{date:today(),from:first,to:(D.accounts.find(a=>a.id!==first)||{}).id,amtFrom:'',amtTo:'',text:''};
+    let touched=edit;
+    fb.innerHTML=`<label>Datum</label><input id="d" type="date" value="${v.date}">
+    <label>Von Konto</label><select id="fr">${accOpts(v.from)}</select>
+    <label>Auf Konto</label><select id="to">${accOpts(v.to)}</select>
+    <label>Betrag (<span id="cf"></span>)</label><input id="af" inputmode="decimal" value="${v.amtFrom}">
+    <div id="wt"><label>Gutschrift (<span id="ct"></span>)</label><input id="at" inputmode="decimal" value="${v.amtTo}"><div class="hint">Automatisch umgerechnet, bei Bedarf anpassen.</div></div>
+    <label>Text</label><input id="tx" value="${esc(v.text)}" placeholder="optional">`;
+    const upd=()=>{const F=cur(q('#fr').value),T=cur(q('#to').value);q('#cf').textContent=F;q('#ct').textContent=T;q('#wt').hidden=F===T;
+     if(F!==T&&!touched){const a=num(q('#af').value);q('#at').value=a>0&&rate(T)?round(a*rate(F)/rate(T),T):'';}};
+    upd();q('#fr').onchange=q('#to').onchange=()=>{touched=false;upd();};q('#af').oninput=upd;q('#at').oninput=()=>touched=true;
+    collect=()=>{const f=q('#fr').value,to=q('#to').value,a=num(q('#af').value),F=cur(f),T=cur(to);
+     if(f===to)return'Bitte zwei verschiedene Konten wählen.';if(!(a>0))return'Bitte einen Betrag eingeben.';
+     const b=F===T?a:num(q('#at').value);if(!(b>0))return'Bitte die Gutschrift eingeben.';
+     return{type:'t',date:q('#d').value||today(),from:f,to,amtFrom:round(a,F),amtTo:round(b,T),text:q('#tx').value.trim()};};
+   }
+   else{
+    if(!D.depots.length){fb.innerHTML='<div class="empty">Zuerst ein Wertschriften-Depot erstellen.<br><br><button class="btn" id="nd">Depot erstellen</button></div>';q('#ok').hidden=true;q('#nd').onclick=()=>{close();depForm();};return;}
+    const v=t&&t.type==='w'?t:{date:today(),dep:preset.dep||D.depots[0].id,side:D.accounts.length?'buy':'in',sec:preset.sec||'',qty:'',price:'',cur:preset.cur||'CHF',acc:first,amtAcc:''};
+    let touched=edit;
+    fb.innerHTML=`<label>Depot</label><select id="dp">${D.depots.map(d=>`<option value="${d.id}" ${d.id===v.dep?'selected':''}>${esc(d.name)}</option>`).join('')}</select>
+    ${seg('side',[['buy','Kauf'],['sell','Verkauf'],['in','Bestand']],v.side)}
+    <div class="hint" id="ih">Bereits vorhandene Wertschriften einbuchen – es wird kein Konto belastet.</div>
+    <label>Datum</label><input id="d" type="date" value="${v.date}">
+    <label>Wertschrift</label><input id="se" list="secs" value="${esc(v.sec)}" placeholder="z. B. Nestlé N" autocomplete="off"><datalist id="secs"></datalist>
+    <div class="g2"><div><label>Anzahl</label><input id="qt" inputmode="decimal" value="${v.qty}"></div><div><label>Währung</label><select id="cu">${CUR.map(c=>`<option ${c===v.cur?'selected':''}>${c}</option>`).join('')}</select></div></div>
+    <div class="g2"><div><label id="lp"></label><input id="pr" inputmode="decimal" value="${v.price}"></div><div><label>Aktueller Kurs</label><input id="cp" inputmode="decimal" placeholder="optional"></div></div>
+    <div class="hint" id="na"></div>
+    <div id="ab"><label id="lk"></label><select id="ac">${accOpts(v.acc)}</select>
+    <label><span id="la"></span> (<span id="ca"></span>)</label><input id="aa" inputmode="decimal" value="${v.amtAcc||''}"><div class="hint">Automatisch berechnet – Spesen/Courtage hier dazurechnen.</div></div>`;
+    const sl=()=>{const P=positions(q('#dp').value,t);q('#secs').innerHTML=P.map(p=>`<option value="${esc(p.sec)}">`).join('');return P;};
+    const upd=()=>{const side=segVal(sh,'side'),A=cur(q('#ac').value);
+     q('#ih').hidden=side!=='in';q('#ab').hidden=side==='in';
+     q('#lp').textContent=side==='buy'?'Kaufpreis / Stk.':side==='sell'?'Verkaufspreis / Stk.':'Einstandspreis / Stk.';
+     q('#lk').textContent=side==='buy'?'Bezahlt von Konto':'Gutschrift auf Konto';q('#la').textContent=side==='buy'?'Belastung':'Gutschrift';q('#ca').textContent=A;
+     const n=num(q('#qt').value),pr=num(q('#pr').value);
+     if(!touched&&side!=='in'){const x=n*pr*rate(q('#cu').value);q('#aa').value=x>0&&rate(A)?round(x/rate(A),A):'';}
+     const p=sl().find(p=>p.sec===q('#se').value.trim());q('#cp').placeholder=p?fPx(p.price,p.cur):'optional';
+     let na='';if(n>0&&pr>=0){if(side==='sell'){if(p)na=`Ø Einstandspreis bleibt ${fPx(p.avg,p.cur)} · Gewinn/Verlust ${fmtN(n*(pr-p.avg),DEC[p.cur])} ${p.cur}`;}
+      else{const q0=p?p.qty:0,c0=p?p.cost:0;na=`Neuer Ø Einstandspreis: ${fPx((c0+n*pr)/(q0+n),q('#cu').value)} ${q('#cu').value} (${fQty(q0+n)} Stk.)`;}}
+     q('#na').textContent=na;};
+    segInit(sh,upd);upd();
+    q('#dp').onchange=upd;q('#qt').oninput=q('#pr').oninput=q('#cu').onchange=q('#ac').onchange=upd;q('#aa').oninput=()=>touched=true;
+    q('#se').oninput=q('#se').onchange=()=>{const p=sl().find(p=>p.sec===q('#se').value.trim());if(p)q('#cu').value=p.cur;upd();};
+    collect=()=>{const s=q('#se').value.trim(),n=num(q('#qt').value),p=num(q('#pr').value),side=segVal(sh,'side'),dp=q('#dp').value;
+     const cpS=q('#cp').value.trim(),cp=cpS?num(cpS):null;
+     if(!s)return'Bitte die Wertschrift angeben.';if(!(n>0))return'Bitte die Anzahl eingeben.';if(!(p>=0))return'Bitte den Preis pro Stück eingeben.';
+     if(cpS&&!(cp>=0))return'Aktueller Kurs ungültig.';
+     const ex=positions(dp,t).find(x=>x.sec===s);if(ex&&ex.cur!==q('#cu').value)return`${s} wird in ${ex.cur} geführt.`;
+     if(side==='sell'){const h=ex?ex.qty:0;if(n>h+1e-9)return`Im Depot sind nur ${fQty(h)} Stück vorhanden.`;}
+     let ac='',a=0;
+     if(side!=='in'){if(!D.accounts.length)return'Zuerst ein Konto erstellen.';ac=q('#ac').value;a=num(q('#aa').value);if(!(a>0))return'Bitte den Betrag fürs Konto eingeben.';a=round(a,cur(ac));}
+     return{type:'w',date:q('#d').value||today(),dep:dp,side,sec:s,qty:n,price:p,cur:q('#cu').value,acc:ac,amtAcc:a,_cp:cp};};
+    if(!D.accounts.length)q('.seg[data-n="side"]').querySelectorAll('button:not([data-k="in"])').forEach(b=>b.disabled=true);
+   }
+  }
+  segInit(sh,(n,k)=>{if(n==='type'){type=k;body();}});
+  body();
+  q('#cx').onclick=close;
+  if(edit)q('#dl').onclick=()=>{if(confirm('Wirklich löschen?')){D.tx=D.tx.filter(x=>x!==t);save();close();render();}};
+  q('#ok').onclick=()=>{const r=collect();if(typeof r==='string')return q('.err').textContent=r;
+   if(r.type==='w'){if(r._cp!=null)D.prices[r.dep+'|'+r.sec]={price:r._cp,date:today()};delete r._cp;}
+   if(edit){for(const k of Object.keys(t))if(!['id','ts'].includes(k))delete t[k];Object.assign(t,r);}else D.tx.push({id:uid(),ts:Date.now(),...r});
+   save();close();render();};
+ });}
+
+/* ===== Verschlüsselung ===== */
+const b64e=buf=>{const u=new Uint8Array(buf);let s='';for(let i=0;i<u.length;i+=0x8000)s+=String.fromCharCode.apply(null,u.subarray(i,i+0x8000));return btoa(s);};
+const b64d=s=>Uint8Array.from(atob(s),c=>c.charCodeAt(0));
+async function deriveKey(pass,salt){const base=await crypto.subtle.importKey('raw',new TextEncoder().encode(pass),'PBKDF2',false,['deriveKey']);
+ return crypto.subtle.deriveKey({name:'PBKDF2',salt:b64d(salt),iterations:250000,hash:'SHA-256'},base,{name:'AES-GCM',length:256},true,['encrypt','decrypt']);}
+const keyFromS=()=>crypto.subtle.importKey('raw',b64d(S.key),'AES-GCM',false,['encrypt','decrypt']);
+async function enc(data,key,salt,updated){const iv=crypto.getRandomValues(new Uint8Array(12));
+ const ct=await crypto.subtle.encrypt({name:'AES-GCM',iv},key,new TextEncoder().encode(JSON.stringify(data)));
+ return JSON.stringify({app:'haushaltbuch',v:1,updated,salt,iv:b64e(iv),ct:b64e(ct)});}
+async function dec(obj,key){const pt=await crypto.subtle.decrypt({name:'AES-GCM',iv:b64d(obj.iv)},key,b64d(obj.ct));return JSON.parse(new TextDecoder().decode(pt));}
+
+/* ===== Synchronisation über geheimen GitHub-Gist ===== */
+let S=lsGet(SK)||{};let rev=0,busy=false,timer=null,conflictOpen=false,errShown=false,lastPull=0;
+const saveS=()=>localStorage.setItem(SK,JSON.stringify(S));
+async function gh(path,opt={},token=S.token){
+ let r;try{r=await fetch('https://api.github.com'+path,{...opt,cache:'no-store',headers:{Authorization:'Bearer '+token,Accept:'application/vnd.github+json',...(opt.body?{'Content-Type':'application/json'}:{})}});}
+ catch(e){throw new Error('Keine Internetverbindung');}
+ if(r.status===401)throw new Error('Token ungültig oder abgelaufen');if(r.status===403)throw new Error('Token hat keine Gist-Berechtigung');if(r.status===404)throw new Error('Gist nicht gefunden');
+ if(!r.ok)throw new Error('GitHub-Fehler '+r.status);return r.json();}
+async function gistContent(g){const f=g.files&&g.files[FN];if(!f)throw new Error('Datei fehlt im Gist');
+ const c=f.truncated?await(await fetch(f.raw_url,{cache:'no-store'})).text():f.content;return JSON.parse(c);}
+function schedulePush(){clearTimeout(timer);timer=setTimeout(sync,1500);}
+async function sync(){
+ if(!S.gistId||conflictOpen)return;if(busy){schedulePush();return;}
+ busy=true;syncBadge('…');const r0=rev;
+ try{
+  const R=await gistContent(await gh('/gists/'+S.gistId));const key=await keyFromS();
+  if(R.updated!==S.base){
+   if(S.dirty){busy=false;syncBadge();return conflict(R,key);}
+   let d;try{d=await dec(R,key);}catch(e){throw new Error('Entschlüsselung fehlgeschlagen – Passwort geändert? Neu einrichten.');}
+   D=Object.assign(blank(),d);localStorage.setItem(KEY,JSON.stringify(D));S.base=R.updated;render();
+  }else if(S.dirty){
+   const up=Date.now();
+   await gh('/gists/'+S.gistId,{method:'PATCH',body:JSON.stringify({files:{[FN]:{content:await enc(D,key,R.salt,up)}}})});
+   S.base=up;if(rev===r0)S.dirty=false;else schedulePush();
+  }
+  S.last=Date.now();S.err='';errShown=false;
+ }catch(e){S.err=e.message;if(!errShown){toast('Synchronisation: '+e.message);errShown=true;}}
+ saveS();busy=false;lastPull=Date.now();syncBadge();if(V.v==='mehr')render();}
+function conflict(R,key){
+ conflictOpen=true;
+ modal(`<h2>Daten auf zwei Geräten geändert</h2><p>Auf einem anderen Gerät wurde gespeichert (${dts(R.updated)}), während hier ebenfalls Änderungen offen sind. Welche Version soll gelten?</p>
+ <div class="btns" style="flex-direction:column"><button class="btn" id="o1">Version vom anderen Gerät übernehmen</button><button class="btn s2" id="o2">Diese Version behalten</button></div>
+ <div class="hint">Tipp: Vorher ein Backup speichern, wenn du unsicher bist.</div>`,(sh,close)=>{
+  sh.querySelector('#o1').onclick=async()=>{try{D=Object.assign(blank(),await dec(R,key));localStorage.setItem(KEY,JSON.stringify(D));S.base=R.updated;S.dirty=false;saveS();}catch(e){toast('Entschlüsselung fehlgeschlagen');}close();conflictOpen=false;render();};
+  sh.querySelector('#o2').onclick=()=>{S.base=R.updated;S.dirty=true;saveS();close();conflictOpen=false;sync();};
+ },true);}
+function syncText(){if(S.err)return'Fehler: '+S.err;if(S.dirty)return'Änderungen werden übertragen …';return'Synchron · zuletzt '+dts(S.last);}
+function syncBadge(x){const e=$('#sy');if(!S.gistId){e.textContent='';return;}e.textContent=x||(S.err?'⚠︎ offline':S.dirty?'↻':'✓');e.title=syncText();}
+function syncNow(){S.err='';sync().then(()=>toast(S.err?'Fehler: '+S.err:'Synchronisiert'));}
+function syncOff(){if(confirm('Synchronisation auf diesem Gerät trennen? Die Daten bleiben hier und im Gist erhalten.')){S={};saveS();render();}}
+function syncSetup(){
+ modal(`<h2>Synchronisation einrichten</h2>
+ <p>Auf <b>jedem Gerät</b> (PC und iPhone) einmal mit demselben Token und Passwort ausführen.</p>
+ <ol><li>Auf <a href="https://github.com/settings/tokens/new?scopes=gist&description=Haushaltbuch" target="_blank" rel="noopener">github.com → Token erstellen</a> nur das Häkchen <b>gist</b> setzen, Ablauf «No expiration», dann «Generate token».</li>
+ <li>Token kopieren und unten einfügen.</li><li>Ein Passwort wählen. Es verschlüsselt die Daten und verlässt nie das Gerät.</li></ol>
+ <label>GitHub-Token</label><input id="tk" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="ghp_…">
+ <label>Passwort (mind. 8 Zeichen)</label><input id="pw" type="password" autocomplete="new-password">
+ <label>Passwort wiederholen (nur beim ersten Gerät nötig)</label><input id="pw2" type="password" autocomplete="new-password">
+ <div class="hint">Passwort gut aufbewahren – ohne Passwort sind die Daten im Gist nicht lesbar.</div>${btns(false,'Verbinden')}`,(sh,close)=>{
+  const q=s=>sh.querySelector(s);q('#cx').onclick=close;
+  q('#ok').onclick=async()=>{
+   const tk=q('#tk').value.trim(),pw=q('#pw').value,err=m=>{q('.err').textContent=m;q('#ok').disabled=false;q('#ok').textContent='Verbinden';};
+   if(!tk)return err('Bitte den Token einfügen.');if(pw.length<8)return err('Passwort muss mindestens 8 Zeichen haben.');
+   q('#ok').disabled=true;q('#ok').textContent='Verbinde …';q('.err').textContent='';
+   try{
+    const list=await gh('/gists?per_page=100',{},tk);const f=list.find(g=>g.files&&g.files[FN]);
+    if(f){
+     const R=await gistContent(await gh('/gists/'+f.id,{},tk));const key=await deriveKey(pw,R.salt);let d;
+     try{d=await dec(R,key);}catch(e){return err('Passwort falsch.');}
+     if((D.accounts.length||D.tx.length)&&!confirm(`Im Gist sind bereits Daten (Stand ${dts(R.updated)}). Sie ersetzen die Daten auf diesem Gerät. Fortfahren?`))return err('Abgebrochen.');
+     D=Object.assign(blank(),d);localStorage.setItem(KEY,JSON.stringify(D));
+     S={token:tk,gistId:f.id,key:b64e(await crypto.subtle.exportKey('raw',key)),base:R.updated,dirty:false,last:Date.now()};
+     toast('Verbunden – Daten übernommen');
+    }else{
+     if(pw!==q('#pw2').value)return err('Passwörter stimmen nicht überein.');
+     const salt=b64e(crypto.getRandomValues(new Uint8Array(16))),key=await deriveKey(pw,salt),up=Date.now();
+     const g=await gh('/gists',{method:'POST',body:JSON.stringify({description:'Haushaltbuch (verschlüsselt)',public:false,files:{[FN]:{content:await enc(D,key,salt,up)}}})},tk);
+     S={token:tk,gistId:g.id,key:b64e(await crypto.subtle.exportKey('raw',key)),base:up,dirty:false,last:Date.now()};
+     toast('Verbunden – Gist erstellt');
+    }
+    saveS();close();render();
+   }catch(e){err(e.message);}
+  };
+ });}
+
+/* ===== PIN-Sperre ===== */
+let PIN=lsGet(PK),hiddenAt=0;
+async function hashPin(pin,salt){return b64e(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(salt+':'+pin)));}
+const pinOk=async pin=>PIN&&await hashPin(pin,PIN.salt)===PIN.hash;
+function lock(){
+ if(!PIN||$('#lock'))return;
+ const l=document.createElement('div');l.id='lock';
+ l.innerHTML=`<h2>Haushaltbuch</h2><div class="sub">PIN eingeben</div><input id="lp" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="${PIN.len}" autocomplete="off"><div class="err"></div><button id="lf">PIN vergessen?</button>`;
+ document.body.appendChild(l);const i=l.querySelector('#lp');setTimeout(()=>i.focus(),50);
+ i.oninput=async()=>{if(i.value.length<PIN.len)return;if(await pinOk(i.value)){l.remove();if(S.gistId)sync();}else{l.querySelector('.err').textContent='Falscher PIN';i.value='';}};
+ l.querySelector('#lf').onclick=()=>{if(confirm('Alle Daten auf diesem Gerät werden gelöscht (inkl. Sync-Verbindung). Mit der Synchronisation kannst du sie danach zurückholen. Fortfahren?')){[KEY,SK,PK].forEach(k=>localStorage.removeItem(k));location.reload();}};}
+function pinSet(change){
+ modal(`<h2>${change?'PIN ändern':'PIN-Sperre einschalten'}</h2>${change?'<label>Aktueller PIN</label><input id="p0" type="password" inputmode="numeric">':''}
+ <label>Neuer PIN (4–8 Ziffern)</label><input id="p1" type="password" inputmode="numeric"><label>PIN wiederholen</label><input id="p2" type="password" inputmode="numeric">
+ <div class="hint">Die App sperrt sich beim Öffnen und nach 1 Minute im Hintergrund. Der PIN gilt nur für dieses Gerät.</div>${btns(false)}`,(sh,close)=>{
+  const q=s=>sh.querySelector(s);q('#cx').onclick=close;
+  q('#ok').onclick=async()=>{const p1=q('#p1').value;
+   if(change&&!await pinOk(q('#p0').value))return q('.err').textContent='Aktueller PIN falsch.';
+   if(!/^\d{4,8}$/.test(p1))return q('.err').textContent='PIN muss aus 4–8 Ziffern bestehen.';
+   if(p1!==q('#p2').value)return q('.err').textContent='PINs stimmen nicht überein.';
+   const salt=b64e(crypto.getRandomValues(new Uint8Array(16)));PIN={salt,hash:await hashPin(p1,salt),len:p1.length};
+   localStorage.setItem(PK,JSON.stringify(PIN));close();render();toast('PIN gespeichert');};
+ });}
+function pinOff(){
+ modal(`<h2>PIN-Sperre ausschalten</h2><label>Aktueller PIN</label><input id="p0" type="password" inputmode="numeric">${btns(false,'Ausschalten')}`,(sh,close)=>{
+  const q=s=>sh.querySelector(s);q('#cx').onclick=close;
+  q('#ok').onclick=async()=>{if(!await pinOk(q('#p0').value))return q('.err').textContent='PIN falsch.';PIN=null;localStorage.removeItem(PK);close();render();};
+ });}
+
+/* ===== Daten ===== */
+function download(blob,name){const u=URL.createObjectURL(blob);const a=document.createElement('a');a.href=u;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),5000);}
+function backup(){download(new Blob([JSON.stringify(D,null,1)],{type:'application/json'}),'Haushaltbuch_Backup_'+today()+'.json');}
+$('#imp').onchange=e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{try{const d=JSON.parse(r.result);if(!Array.isArray(d.accounts))throw 0;if(confirm('Aktuelle Daten durch das Backup ersetzen?'+(S.gistId?' Die Daten werden auch auf die anderen Geräte übertragen.':''))){delete d.rates;delete d.ratesTs;D=Object.assign(blank(),d);save();go('konten');toast('Backup geladen');}}catch(x){alert('Datei ist kein gültiges Backup.');}e.target.value='';};r.readAsText(f);};
+function wipe(){if(confirm('Wirklich ALLE Daten löschen?'+(S.gistId?' Auch auf den synchronisierten Geräten!':''))&&confirm('Sicher? Das kann nicht rückgängig gemacht werden.')){D=blank();save();go('konten');}}
+
+/* ===== PDF (ohne externe Bibliothek) ===== */
+const HW=[278,278,355,556,556,889,667,191,333,333,389,584,278,333,278,278,556,556,556,556,556,556,556,556,556,556,278,278,584,584,584,556,1015,667,667,722,722,667,611,778,722,278,500,667,556,833,722,778,667,778,722,667,611,722,667,944,667,667,611,278,278,278,469,556,333,556,556,500,556,556,278,556,556,222,222,500,222,833,556,556,556,556,333,500,278,556,500,722,500,500,500,334,260,334,584];
+const latin=s=>String(s).replace(/[’‘]/g,"'").replace(/[“”«»]/g,'"').replace(/[–—]/g,'-').replace(/…/g,'\x85').replace(/≈/g,'~').replace(/[^\x00-\xFF]/g,'?');
+function tw(s,size,bold){let w=0;for(const ch of s){const c=ch.charCodeAt(0);w+=c>=32&&c<=126?HW[c-32]:c===0x85?1000:556;}return w*size/1000*(bold?1.07:1);}
+function fit(s,maxW,size,bold){s=latin(s);if(tw(s,size,bold)<=maxW)return s;while(s.length>1&&tw(s+'\x85',size,bold)>maxW)s=s.slice(0,-1);return s+'\x85';}
+class PDF{
+ constructor(){this.p=[];this.np();}
+ np(){this.c=[];this.p.push(this.c);this.y=790;}
+ need(h){if(this.y-h<60)this.np();}
+ col(c){const h=c.replace('#','');return[0,2,4].map(i=>(parseInt(h.substr(i,2),16)/255).toFixed(3)).join(' ');}
+ t(x,y,s,o={}){const sz=o.size||9.5,b=!!o.bold;s=latin(s);const w=tw(s,sz,b);if(o.al==='r')x-=w;else if(o.al==='c')x-=w/2;
+  this.c.push(`BT /${b?'F2':'F1'} ${sz} Tf ${this.col(o.color||'#1d1d1f')} rg ${x.toFixed(2)} ${y.toFixed(2)} Td (${s.replace(/\\/g,'\\\\').replace(/\(/g,'\\(').replace(/\)/g,'\\)')}) Tj ET`);}
+ r(x,y,w,h,c){this.c.push(`${this.col(c)} rg ${x.toFixed(2)} ${y.toFixed(2)} ${w.toFixed(2)} ${h.toFixed(2)} re f`);}
+ l(x1,y1,x2,y2,c='#d0d0cc',w=.5){this.c.push(`${this.col(c)} RG ${w} w ${x1.toFixed(2)} ${y1.toFixed(2)} m ${x2.toFixed(2)} ${y2.toFixed(2)} l S`);}
+ poly(pts,c){this.c.push(`${this.col(c)} rg `+pts.map((p,i)=>`${p[0].toFixed(2)} ${p[1].toFixed(2)} ${i?'l':'m'}`).join(' ')+' h f');}
+ circle(cx,cy,r,c){const pts=[];for(let i=0;i<72;i++){const a=i/72*2*Math.PI;pts.push([cx+r*Math.cos(a),cy+r*Math.sin(a)]);}this.poly(pts,c);}
+ pie(title,list){
+  list=pieItems(list);const tot=list.reduce((s,x)=>s+x.val,0);if(tot<=0)return;
+  const R=80,lh=16,h=Math.max(2*R,list.length*lh)+50;this.need(h);
+  this.t(50,this.y,title,{size:12,bold:true});this.y-=20;
+  const cx=50+R,cy=this.y-R;let a=Math.PI/2;
+  list.forEach((it,i)=>{const fr=it.val/tot,c=COL[i%COL.length];
+   if(fr>0.9999){this.circle(cx,cy,R,c);return;}
+   const a2=a-fr*2*Math.PI,n=Math.max(2,Math.ceil(fr*120)),pts=[[cx,cy]];
+   for(let k=0;k<=n;k++){const t=a+(a2-a)*k/n;pts.push([cx+R*Math.cos(t),cy+R*Math.sin(t)]);}this.poly(pts,c);a=a2;});
+  this.circle(cx,cy,R*.55,'#ffffff');
+  this.t(cx,cy+2,'CHF',{size:8,al:'c',color:'#8a8a8e'});this.t(cx,cy-10,fCHF(tot).replace(/\.\d+$/,''),{size:10,bold:true,al:'c'});
+  let ly=this.y-8;const lx=cx+R+40;
+  list.forEach((it,i)=>{this.r(lx,ly-1,9,9,COL[i%COL.length]);this.t(lx+16,ly,fit(it.label,200,9.5),{});this.t(480,ly,(it.val/tot*100).toFixed(1)+' %',{al:'r'});this.t(545,ly,fCHF(it.val),{al:'r',color:'#6c6f7f'});ly-=lh;});
+  this.y-=h-30;}
+ head(title,sub,sub2){this.t(50,this.y,title,{size:22,bold:true});this.y-=18;this.t(50,this.y,sub,{size:9.5,color:'#6c6f7f'});if(sub2){this.y-=13;this.t(50,this.y,sub2,{size:8.5,color:'#8a8a8e'});}this.y-=26;}
+ section(s,cols){this.need(50);this.r(50,this.y-5,495,19,'#eef1f2');this.t(56,this.y,s,{bold:true,size:10.5,color:'#1f4e5f'});for(const[x,l]of cols)this.t(x,this.y,l,{size:8.5,al:'r',color:'#6c6f7f'});this.y-=21;}
+ row(cells,o={}){this.need(16);for(const c of cells)this.t(c.x,this.y,c.s,{al:c.al,bold:o.bold||c.bold,color:c.color,size:c.size||o.size});this.y-=5;this.l(50,this.y,545,this.y,o.line||'#e2e2de',o.lw||.5);this.y-=11;}
+ out(){
+  const n=this.p.length,stamp='Erstellt am '+dch(today());
+  this.p.forEach((c,i)=>{c.push(`BT /F1 8 Tf 0.55 0.55 0.56 rg 50 30 Td (${latin(stamp)}) Tj ET`);const s=`Seite ${i+1} / ${n}`;c.push(`BT /F1 8 Tf 0.55 0.55 0.56 rg ${(545-tw(s,8)).toFixed(2)} 30 Td (${s}) Tj ET`);});
+  const o=[];o[1]='<< /Type /Catalog /Pages 2 0 R >>';
+  o[3]='<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>';
+  o[4]='<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>';
+  const kids=[];let k=5;
+  for(const c of this.p){const s=c.join('\n'),pi=k++,ci=k++;kids.push(pi+' 0 R');
+   o[pi]=`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595.28 841.89] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents ${ci} 0 R >>`;
+   o[ci]=`<< /Length ${s.length} >>\nstream\n${s}\nendstream`;}
+  o[2]=`<< /Type /Pages /Kids [${kids.join(' ')}] /Count ${kids.length} >>`;
+  let out='%PDF-1.4\n%\xE2\xE3\xCF\xD3\n';const off=[];
+  for(let i=1;i<k;i++){off[i]=out.length;out+=`${i} 0 obj\n${o[i]}\nendobj\n`;}
+  const x=out.length;out+=`xref\n0 ${k}\n0000000000 65535 f \n`;for(let i=1;i<k;i++)out+=String(off[i]).padStart(10,'0')+' 00000 n \n';
+  out+=`trailer\n<< /Size ${k} /Root 1 0 R >>\nstartxref\n${x}\n%%EOF`;
+  const b=new Uint8Array(out.length);for(let i=0;i<out.length;i++)b[i]=out.charCodeAt(i)&255;
+  return new Blob([b],{type:'application/pdf'});}
+}
+const kursLine=()=>'Kurse: '+['USD','JPY','BTC','AU'].map(rateText).join('  ·  ');
+
+function bilanzPDF(){
+ const B=bilanz(),p=new PDF();
+ p.head('Bilanz',`Per ${dch(today())}  ·  Beträge in CHF  ·  Kurse vom ${ratesStand()}`,kursLine());
+ const cols=[[420,'Originalwährung'],[490,'CHF'],[545,'Anteil']];
+ const line=(x,share)=>p.row([{x:56,s:fit(x.name+(x.sub?'  ('+x.sub+')':''),230,9.5)},{x:420,s:x.cur!=='CHF'?fmt(x.orig,x.cur)+(USDQ(x.cur)&&Q.q[x.cur]?'  = USD '+fmtN(usd(x.orig,x.cur),0):''):'',al:'r',color:'#6c6f7f',size:8.5},{x:490,s:fCHF(x.chf),al:'r'},{x:545,s:share,al:'r',color:'#6c6f7f'}]);
+ p.section('Aktiven',cols);
+ B.A.forEach(x=>line(x,B.tA?(x.chf/B.tA*100).toFixed(1)+' %':''));
+ p.row([{x:56,s:'Total Aktiven'},{x:490,s:fCHF(B.tA),al:'r'}],{bold:true,line:'#1d1d1f',lw:.8});p.y-=12;
+ p.section('Passiven',cols.slice(0,2));
+ B.P.forEach(x=>line(x,''));
+ p.row([{x:56,s:'Fremdkapital'},{x:490,s:fCHF(B.tP),al:'r'}]);
+ p.row([{x:56,s:'Reinvermögen'},{x:490,s:fCHF(B.net),al:'r',color:B.net<0?'#b3392f':undefined}]);
+ p.row([{x:56,s:'Total Passiven'},{x:490,s:fCHF(B.tP+B.net),al:'r'}],{bold:true,line:'#1d1d1f',lw:.8});
+ p.y-=24;p.pie('Vermögensanteile (Aktiven)',B.A.map(x=>({label:x.name,val:x.chf})));
+ download(p.out(),'Bilanz_'+today()+'.pdf');}
+
+function budgetPDF(){
+ const p=new PDF(),inc=D.budgets.filter(b=>b.kind==='in'),out=D.budgets.filter(b=>b.kind==='out');
+ if(!D.budgets.length)return toast('Noch keine Budget-Positionen.');
+ p.head('Budget',`Stand ${dch(today())}  ·  Umrechnung in CHF zu Kursen vom ${ratesStand()}`,kursLine());
+ const cols=[[395,'Betrag'],[470,'CHF / Monat'],[545,'CHF / Jahr']];
+ const line=b=>{const a=acc(b.acc);p.row([{x:56,s:fit(b.name,140,9.5)},{x:200,s:fit((RHY[b.rhy])+(a?' · '+a.name:''),130,8.5),color:'#6c6f7f'},{x:395,s:fmt(b.amt,b.cur),al:'r',color:'#6c6f7f'},{x:470,s:fCHF(budYear(b)/12),al:'r'},{x:545,s:fCHF(budYear(b)),al:'r'}]);};
+ const sum=L=>L.reduce((s,b)=>s+budYear(b),0),ti=sum(inc),to=sum(out);
+ const tot=(l,v)=>{p.row([{x:56,s:l},{x:470,s:fCHF(v/12),al:'r'},{x:545,s:fCHF(v),al:'r'}],{bold:true,line:'#1d1d1f',lw:.8});p.y-=12;};
+ p.section('Einnahmen',cols);inc.forEach(line);tot('Total Einnahmen',ti);
+ p.section('Ausgaben',cols);[...out].sort((a,b)=>budYear(b)-budYear(a)).forEach(line);tot('Total Ausgaben',to);
+ p.need(30);p.row([{x:56,s:ti-to>=0?'Überschuss':'Fehlbetrag'},{x:470,s:fCHF((ti-to)/12),al:'r',color:ti-to<0?'#b3392f':'#2e7d4f'},{x:545,s:fCHF(ti-to),al:'r',color:ti-to<0?'#b3392f':'#2e7d4f'}],{bold:true,size:10.5,line:'#ffffff'});
+ p.y-=20;p.pie('Anteile Budget-Positionen (Ausgaben)',out.map(b=>({label:b.name,val:budYear(b)})));
+ download(p.out(),'Budget_'+today()+'.pdf');}
+
+/* ===== Start ===== */
+document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>go(b.dataset.v));
+$('#fab').onclick=()=>txForm(null,V.v==='depot'?{type:'w',dep:V.id}:V.v==='konto'?{acc:V.id}:{});
+document.addEventListener('visibilitychange',()=>{
+ if(document.hidden){hiddenAt=Date.now();if(S.gistId&&S.dirty){clearTimeout(timer);sync();}}
+ else{if(PIN&&hiddenAt&&Date.now()-hiddenAt>60000)lock();if(S.gistId&&Date.now()-lastPull>15000)sync();
+  if(!Q.ts||Date.now()-new Date(Q.ts)>3600e3)refreshRates(false);}});
+window.addEventListener('online',()=>{if(S.gistId)sync();});
+render();lock();
+if(S.gistId)sync();
+if(!Q.ts||Date.now()-new Date(Q.ts)>3600e3)refreshRates(false);
+</script>
+</body>
+</html>
