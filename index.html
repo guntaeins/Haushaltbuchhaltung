@@ -67,6 +67,7 @@ input:focus,select:focus{outline:2px solid var(--acc);outline-offset:-1px}
 .leg{flex:1;min-width:170px;font-size:14px}
 .leg div{display:flex;align-items:center;gap:8px;padding:2px 0}
 .leg span.n{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.leg span.v{color:var(--mut);font-variant-numeric:tabular-nums}
 .dot{width:10px;height:10px;border-radius:3px;flex:none}
 .toast{position:fixed;left:50%;top:calc(14px + env(safe-area-inset-top));transform:translateX(-50%);background:#1d1d1f;color:#fff;padding:10px 16px;border-radius:12px;font-size:14px;z-index:60;max-width:90vw}
 #lock{position:fixed;inset:0;background:var(--bg);z-index:50;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:30px}
@@ -90,6 +91,7 @@ input:focus,select:focus{outline:2px solid var(--acc);outline-offset:-1px}
 /* ===== Grundlagen ===== */
 const CUR=['CHF','USD','JPY','BTC','AU'];
 const CURNAME={CHF:'Schweizer Franken',USD:'US-Dollar',JPY:'Japanischer Yen',BTC:'Bitcoin',AU:'Gold (Unzen)'};
+const GRPNAME={CHF:'CHF',USD:'USD',JPY:'JPY',BTC:'Bitcoin (BTC)',AU:'Gold (AU)'};
 const DEC={CHF:2,USD:2,JPY:0,BTC:8,AU:3};
 const RHY={12:'monatlich',4:'vierteljährlich',2:'halbjährlich',1:'jährlich'};
 const SIDE={buy:'Kauf',sell:'Verkauf',in:'Bestand'};
@@ -157,10 +159,15 @@ function depByCur(id){const r={};positions(id).forEach(p=>r[p.cur]=(r[p.cur]||0)
 function bilanz(){
  const A=[],P=[];
  for(const a of D.accounts){const b=bal(a.id),c=chf(b,a.cur);if(b>1e-9)A.push({name:a.name,orig:b,cur:a.cur,chf:c});else if(b<-1e-9)P.push({name:a.name,orig:-b,cur:a.cur,chf:-c});}
- for(const d of D.depots){const v=depVal(d.id);if(v>1e-9)A.push({name:d.name,sub:'Wertschriften-Depot',orig:v,cur:'CHF',chf:v});}
+ for(const d of D.depots){const v=depVal(d.id);if(v>1e-9)A.push({name:d.name,sub:'Wertschriften-Depot',orig:v,cur:'CHF',chf:v,dep:true});}
  A.sort((x,y)=>y.chf-x.chf);P.sort((x,y)=>y.chf-x.chf);
  const tA=A.reduce((s,x)=>s+x.chf,0),tP=P.reduce((s,x)=>s+x.chf,0);
  return{A,P,tA,tP,net:tA-tP};}
+/* Grafik: Aktiven nach Währung zusammengefasst + Wertschriften separat */
+function assetGroups(B){
+ const g={};
+ for(const x of B.A){const k=x.dep?'Wertschriften':GRPNAME[x.cur];g[k]=(g[k]||0)+x.chf;}
+ return Object.entries(g).map(([label,val])=>({label,val}));}
 const budYear=b=>chf(b.amt*b.rhy,b.cur);
 function budIst(b){const y=String(new Date().getFullYear());let s=0;for(const t of D.tx)if(t.type==='b'&&t.bud===b.id&&(t.date||'').startsWith(y)){const a=acc(t.acc);if(a)s+=chf(t.amt,a.cur);}return b.kind==='out'?-s:s;}
 const missingRates=()=>CUR.filter(c=>c!=='CHF'&&!rate(c)&&(D.accounts.some(a=>a.cur===c)||D.budgets.some(b=>b.cur===c)||D.tx.some(t=>t.type==='w'&&t.cur===c)));
@@ -188,14 +195,14 @@ function rateText(c){const q=Q.q||{};
 
 /* ===== Kuchendiagramm (App) ===== */
 function pieItems(list){list=list.filter(x=>x.val>0).sort((a,b)=>b.val-a.val);if(list.length>10){const r=list.slice(9);list=list.slice(0,9);list.push({label:'Übrige',val:r.reduce((s,x)=>s+x.val,0)});}return list;}
-function pieHTML(list){
+function pieHTML(list,showVal){
  list=pieItems(list);const tot=list.reduce((s,x)=>s+x.val,0);if(tot<=0)return'';
  let a=-Math.PI/2,p='';
  list.forEach((it,i)=>{const fr=it.val/tot,c=COL[i%COL.length];
   if(fr>0.9999){p+=`<circle cx="50" cy="50" r="48" fill="${c}"/>`;return;}
   const a2=a+fr*2*Math.PI,x1=50+48*Math.cos(a),y1=50+48*Math.sin(a),x2=50+48*Math.cos(a2),y2=50+48*Math.sin(a2);
   p+=`<path d="M50 50L${x1.toFixed(2)} ${y1.toFixed(2)}A48 48 0 ${fr>.5?1:0} 1 ${x2.toFixed(2)} ${y2.toFixed(2)}Z" fill="${c}"/>`;a=a2;});
- return `<div class="card pie"><svg viewBox="0 0 100 100">${p}<circle cx="50" cy="50" r="27" fill="#fff"/></svg><div class="leg">${list.map((it,i)=>`<div><i class="dot" style="background:${COL[i%COL.length]}"></i><span class="n">${esc(it.label)}</span><b>${(it.val/tot*100).toFixed(1)}%</b></div>`).join('')}</div></div>`;}
+ return `<div class="card pie"><svg viewBox="0 0 100 100">${p}<circle cx="50" cy="50" r="27" fill="#fff"/></svg><div class="leg">${list.map((it,i)=>`<div><i class="dot" style="background:${COL[i%COL.length]}"></i><span class="n">${esc(it.label)}</span>${showVal?`<span class="v">${fCHF(it.val).replace(/\.\d+$/,'')}</span>`:''}<b>${(it.val/tot*100).toFixed(1)}%</b></div>`).join('')}</div></div>`;}
 
 /* ===== Ansichten ===== */
 let V={v:'konten'};
@@ -216,7 +223,7 @@ function render(){
   h+=`<div class="sec">Konten<button onclick="accForm()">+ Neu</button></div><div class="card">`;
   h+=D.accounts.length?D.accounts.map(a=>{const b=bal(a.id),u=usdLine(b,a.cur);return `<div class="row tap" onclick="go('konto','${a.id}')"><div class="l"><div class="t">${esc(a.name)}</div><div class="sub">${CURNAME[a.cur]}</div></div><div class="amt"><span class="${b<0?'neg':''}">${fmt(b,a.cur)}</span>${u?`<div class="sub">${u}</div>`:''}</div></div>`;}).join(''):`<div class="empty">Noch keine Konten.<br>Tippe auf «+ Neu».</div>`;
   h+=`</div><div class="sec">Wertschriften-Depots<button onclick="depForm()">+ Neu</button></div><div class="card">`;
-  h+=D.depots.length?D.depots.map(d=>{const bc=depByCur(d.id),k=Object.keys(bc);return `<div class="row tap" onclick="go('depot','${d.id}')"><div class="l"><div class="t">${esc(d.name)}</div><div class="sub">${(n=>n+(n===1?' Position':' Positionen'))(positions(d.id).length)}</div></div><div class="amt">${k.length?k.map((c,i)=>`<div class="${i?'sub':''}">${fmt(bc[c],c)}</div>`).join(''):'–'}</div></div>`;}).join(''):`<div class="empty">Noch keine Depots.</div>`;
+  h+=D.depots.length?D.depots.map(d=>{const bc=depByCur(d.id),k=Object.keys(bc),n=positions(d.id).length;return `<div class="row tap" onclick="go('depot','${d.id}')"><div class="l"><div class="t">${esc(d.name)}</div><div class="sub">${n} ${n===1?'Position':'Positionen'}</div></div><div class="amt">${k.length?k.map((c,i)=>`<div class="${i?'sub':''}">${fmt(bc[c],c)}</div>`).join(''):'–'}</div></div>`;}).join(''):`<div class="empty">Noch keine Depots.</div>`;
   h+=`</div>`;
  }
 
@@ -270,7 +277,7 @@ function render(){
   h+=warn+`<div class="sub" style="padding:0 6px">Per ${dch(today())} · in CHF · Kurse vom ${ratesStand()} <a href="#" onclick="refreshRates(true);return false" style="color:var(--acc)">aktualisieren</a></div>`;
   h+=`<div class="sec">Aktiven</div><div class="card">${B.A.map(r).join('')||'<div class="empty">Keine Aktiven.</div>'}<div class="row total"><div class="l">Total Aktiven</div><div class="amt">${fCHF(B.tA)}</div></div></div>`;
   h+=`<div class="sec">Passiven</div><div class="card">${B.P.map(r).join('')}<div class="row"><div class="l">Fremdkapital</div><div class="amt">${fCHF(B.tP)}</div></div><div class="row"><div class="l">Reinvermögen</div><div class="amt ${B.net<0?'neg':''}">${fCHF(B.net)}</div></div><div class="row total"><div class="l">Total Passiven</div><div class="amt">${fCHF(B.tP+B.net)}</div></div></div>`;
-  if(B.A.length)h+=`<div class="sec">Vermögensanteile</div>`+pieHTML(B.A.map(x=>({label:x.name,val:x.chf})));
+  if(B.A.length)h+=`<div class="sec">Vermögen nach Währung (CHF)</div>`+pieHTML(assetGroups(B),true);
  }
 
  else if(V.v==='mehr'){
@@ -648,7 +655,7 @@ function bilanzPDF(){
  p.row([{x:56,s:'Fremdkapital'},{x:490,s:fCHF(B.tP),al:'r'}]);
  p.row([{x:56,s:'Reinvermögen'},{x:490,s:fCHF(B.net),al:'r',color:B.net<0?'#b3392f':undefined}]);
  p.row([{x:56,s:'Total Passiven'},{x:490,s:fCHF(B.tP+B.net),al:'r'}],{bold:true,line:'#1d1d1f',lw:.8});
- p.y-=24;p.pie('Vermögensanteile (Aktiven)',B.A.map(x=>({label:x.name,val:x.chf})));
+ p.y-=24;p.pie('Vermögen nach Währung (Aktiven in CHF)',assetGroups(B));
  download(p.out(),'Bilanz_'+today()+'.pdf');}
 
 function budgetPDF(){
