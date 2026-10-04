@@ -13,17 +13,23 @@
 :root{--bg:#f5f5f3;--card:#fff;--tx:#1d1d1f;--mut:#8a8a8e;--line:#e8e8e5;--acc:#1f4e5f;--pos:#2e7d4f;--neg:#b3392f}
 *{box-sizing:border-box;margin:0;padding:0}
 body{font:16px/1.4 -apple-system,system-ui,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--tx);padding-bottom:calc(76px + env(safe-area-inset-bottom));-webkit-tap-highlight-color:transparent}
+body.dragging{user-select:none;-webkit-user-select:none;cursor:grabbing}
 header{position:sticky;top:0;background:rgba(245,245,243,.94);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);padding:calc(12px + env(safe-area-inset-top)) 18px 8px;display:flex;align-items:center;gap:10px;z-index:5}
 header h1{font-size:26px;font-weight:700;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 header button{font-size:17px;color:var(--acc);background:none;border:0;cursor:pointer}
 #sy{font-size:12px;color:var(--mut);white-space:nowrap}
 main{padding:0 14px 30px;max-width:720px;margin:0 auto}
 .card{background:var(--card);border-radius:14px;margin:8px 0;overflow:hidden}
-.row{display:flex;align-items:center;padding:12px 16px;border-bottom:1px solid var(--line);gap:12px}
+.row{display:flex;align-items:center;padding:12px 16px;border-bottom:1px solid var(--line);gap:12px;background:var(--card)}
 .row:last-child{border-bottom:0}
 .row .l{flex:1;min-width:0}
+.row.drag{position:relative;z-index:3;box-shadow:0 4px 16px rgba(0,0,0,.18);background:#fbfbfa}
+.grip{flex:none;touch-action:none;cursor:grab;color:#c4c4c0;padding:8px 4px 8px 0;margin:-8px -4px -8px -6px;display:flex;align-items:center}
+.grip svg{width:12px;height:18px;fill:currentColor}
+.grip:hover{color:var(--mut)}
 .t{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .sub{font-size:13px;color:var(--mut)}
+.note{font-size:13px;color:#6c6f7f;margin-top:2px;white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .amt{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
 .pos{color:var(--pos)}.neg{color:var(--neg)}
 .sec{font-size:13px;color:var(--mut);text-transform:uppercase;letter-spacing:.04em;margin:20px 4px 2px;display:flex;justify-content:space-between;align-items:center}
@@ -52,8 +58,9 @@ nav svg{width:25px;height:25px;fill:none;stroke:currentColor;stroke-width:1.7;st
 .sheet ol{font-size:14px;margin:6px 0 0 20px;color:#444}
 .sheet a{color:var(--acc)}
 label{display:block;font-size:13px;color:var(--mut);margin:12px 2px 4px}
-input,select{width:100%;font-size:17px;padding:11px 12px;border:1px solid var(--line);border-radius:10px;background:#fff;color:var(--tx);font-family:inherit}
-input:focus,select:focus{outline:2px solid var(--acc);outline-offset:-1px}
+input,select,textarea{width:100%;font-size:17px;padding:11px 12px;border:1px solid var(--line);border-radius:10px;background:#fff;color:var(--tx);font-family:inherit}
+textarea{resize:vertical;min-height:70px;line-height:1.35}
+input:focus,select:focus,textarea:focus{outline:2px solid var(--acc);outline-offset:-1px}
 .seg{display:flex;background:#e6e6e3;border-radius:10px;padding:3px;gap:3px;margin-top:10px}
 .seg button{flex:1;border:0;background:none;padding:8px 4px;border-radius:8px;font-size:15px;color:var(--tx);cursor:pointer}
 .seg button.on{background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.12);font-weight:600}
@@ -96,6 +103,7 @@ const DEC={CHF:2,USD:2,JPY:0,BTC:8,AU:3};
 const RHY={12:'monatlich',4:'vierteljährlich',2:'halbjährlich',1:'jährlich'};
 const SIDE={buy:'Kauf',sell:'Verkauf',in:'Bestand'};
 const COL=['#1f4e5f','#c98b2b','#5b8c5a','#8e5572','#3d7ea6','#d1603d','#6c6f7f','#a4a65a','#4f6d7a','#b07d62','#7a9e9f'];
+const GRIP='<span class="grip" title="Ziehen zum Verschieben"><svg viewBox="0 0 12 18"><circle cx="3" cy="3" r="1.6"/><circle cx="9" cy="3" r="1.6"/><circle cx="3" cy="9" r="1.6"/><circle cx="9" cy="9" r="1.6"/><circle cx="3" cy="15" r="1.6"/><circle cx="9" cy="15" r="1.6"/></svg></span>';
 const KEY='haushaltbuch-v1',RK='haushaltbuch-kurse',SK='haushaltbuch-sync',PK='haushaltbuch-pin',FN='haushaltbuch.enc.json';
 const blank=()=>({accounts:[],depots:[],budgets:[],tx:[],prices:{},divs:{}});
 const lsGet=k=>{try{return JSON.parse(localStorage.getItem(k));}catch(e){return null;}};
@@ -163,7 +171,6 @@ function depDivByCur(id){const r={};positions(id).forEach(p=>{if(p.divYear)r[p.c
 const depDivCHF=id=>positions(id).reduce((s,p)=>s+chf(p.divYear,p.cur),0);
 const curList=o=>Object.keys(o).sort(curSort).map(c=>fmt(o[c],c)).join(' · ');
 const isLiq=x=>x.liquid!==false;
-const sortedAccs=()=>[...D.accounts].sort((a,b)=>curSort(a.cur,b.cur));
 const accInt=a=>bal(a.id)*(a.rate||0)/100;
 function overview(){
  const o={liq:0,ill:0,int:0,div:0};
@@ -172,19 +179,49 @@ function overview(){
  return o;}
 function bilanz(){
  const A=[],P=[];
- for(const a of D.accounts){const b=bal(a.id),c=chf(b,a.cur);if(b>1e-9)A.push({name:a.name,orig:b,cur:a.cur,chf:c});else if(b<-1e-9)P.push({name:a.name,orig:-b,cur:a.cur,chf:-c});}
- for(const d of D.depots){const v=depVal(d.id);if(v>1e-9)A.push({name:d.name,sub:'Wertschriften-Depot',orig:v,cur:'CHF',chf:v,dep:true});}
+ for(const a of D.accounts){const b=bal(a.id),c=chf(b,a.cur);if(b>1e-9)A.push({name:a.name,orig:b,cur:a.cur,chf:c,liq:isLiq(a)});else if(b<-1e-9)P.push({name:a.name,orig:-b,cur:a.cur,chf:-c});}
+ for(const d of D.depots){const v=depVal(d.id);if(v>1e-9)A.push({name:d.name,sub:'Wertschriften-Depot',orig:v,cur:'CHF',chf:v,dep:true,liq:isLiq(d)});}
  A.sort((x,y)=>y.chf-x.chf);P.sort((x,y)=>y.chf-x.chf);
  const tA=A.reduce((s,x)=>s+x.chf,0),tP=P.reduce((s,x)=>s+x.chf,0);
  return{A,P,tA,tP,net:tA-tP};}
-/* Grafik: Aktiven nach Währung zusammengefasst + Wertschriften separat */
+/* Grafiken Bilanz */
 function assetGroups(B){
  const g={};
- for(const x of B.A){const k=x.dep?'Wertschriften':GRPNAME[x.cur];g[k]=(g[k]||0)+x.chf;}
+ for(const x of B.A){const k=x.dep?x.name+' (Depot)':GRPNAME[x.cur];g[k]=(g[k]||0)+x.chf;}
  return Object.entries(g).map(([label,val])=>({label,val}));}
+const capGroups=B=>[{label:'Fremdkapital',val:B.tP},{label:'Eigenkapital',val:Math.max(B.net,0)}];
+function liqGroups(B){let l=0,n=0;for(const x of B.A){if(x.liq)l+=x.chf;else n+=x.chf;}return[{label:'Liquide',val:l},{label:'Nicht liquide',val:n}];}
 const budYear=b=>chf(b.amt*b.rhy,b.cur);
 function budIst(b){const y=String(new Date().getFullYear());let s=0;for(const t of D.tx)if(t.type==='b'&&t.bud===b.id&&(t.date||'').startsWith(y)){const a=acc(t.acc);if(a)s+=chf(t.amt,a.cur);}return b.kind==='out'?-s:s;}
 const missingRates=()=>CUR.filter(c=>c!=='CHF'&&!rate(c)&&(D.accounts.some(a=>a.cur===c)||D.budgets.some(b=>b.cur===c)||D.tx.some(t=>t.type==='w'&&t.cur===c)));
+
+/* ===== Reihenfolge per Drag & Drop ===== */
+function reorder(arr,ids){
+ const set=new Set(ids),idx=[];arr.forEach((x,i)=>{if(set.has(x.id))idx.push(i);});
+ const map={};arr.forEach(x=>map[x.id]=x);idx.forEach((i,k)=>arr[i]=map[ids[k]]);}
+function enableSort(box,arr){
+ if(!box)return;
+ box.querySelectorAll(':scope > .row[data-id] .grip').forEach(g=>{
+  g.addEventListener('click',e=>e.stopPropagation());
+  g.addEventListener('pointerdown',e=>{
+   if(e.button>0)return;e.preventDefault();e.stopPropagation();
+   const row=g.closest('.row'),before=[...box.children].map(r=>r.dataset.id).join();
+   row.classList.add('drag');document.body.classList.add('dragging');
+   let lastY=e.clientY,scr=null;
+   const place=y=>{
+    for(const r of box.querySelectorAll(':scope > .row[data-id]')){
+     if(r===row)continue;const b=r.getBoundingClientRect();
+     if(y>=b.top&&y<=b.bottom){if(y<b.top+b.height/2){if(r.previousElementSibling!==row)box.insertBefore(row,r);}else if(r.nextElementSibling!==row)box.insertBefore(row,r.nextSibling);break;}}};
+   const auto=()=>{const h=innerHeight;const d=lastY<90?-12:lastY>h-130?12:0;if(d){scrollBy(0,d);place(lastY);}scr=requestAnimationFrame(auto);};
+   scr=requestAnimationFrame(auto);
+   const mv=ev=>{lastY=ev.clientY;place(ev.clientY);};
+   const up=()=>{removeEventListener('pointermove',mv);removeEventListener('pointerup',up);removeEventListener('pointercancel',up);
+    cancelAnimationFrame(scr);row.classList.remove('drag');document.body.classList.remove('dragging');
+    const ids=[...box.querySelectorAll(':scope > .row[data-id]')].map(r=>r.dataset.id);
+    if(ids.join()!==before){reorder(arr,ids);save();}};
+   addEventListener('pointermove',mv);addEventListener('pointerup',up);addEventListener('pointercancel',up);
+  });
+ });}
 
 /* ===== Kurse aus dem Internet ===== */
 async function getJSON(u){const r=await fetch(u,{cache:'no-store'});if(!r.ok)throw new Error(r.status);return r.json();}
@@ -199,7 +236,7 @@ async function refreshRates(show){
  if(!ok.includes('BTC')){try{const j=await getJSON('https://api.gold-api.com/price/BTC');if(j.price){q.BTC=j.price;ok.push('BTC');}}catch(e){}}
  if(ok.length){Q={q,ts:new Date().toISOString()};saveQ();}
  if(show)toast(ok.length===4?'Kurse aktualisiert':ok.length?'Teilweise aktualisiert: '+ok.join(', '):'Keine Verbindung – Kurse unverändert');
- render();}
+ if(!document.body.classList.contains('dragging'))render();}
 const ratesStand=()=>dts(Q.ts);
 function rateText(c){const q=Q.q||{};
  if(c==='USD')return q.USD?'1 USD = CHF '+fmtN(q.USD,4):'–';
@@ -208,9 +245,9 @@ function rateText(c){const q=Q.q||{};
  if(c==='AU')return q.AU?'1 Unze = USD '+fmtN(q.AU,2):'–';}
 
 /* ===== Kuchendiagramm (App) ===== */
-function pieItems(list){list=list.filter(x=>x.val>0).sort((a,b)=>b.val-a.val);if(list.length>10){const r=list.slice(9);list=list.slice(0,9);list.push({label:'Übrige',val:r.reduce((s,x)=>s+x.val,0)});}return list;}
-function pieHTML(list,showVal){
- list=pieItems(list);const tot=list.reduce((s,x)=>s+x.val,0);if(tot<=0)return'';
+function pieItems(list,keep){list=list.filter(x=>x.val>0);if(!keep)list.sort((a,b)=>b.val-a.val);if(list.length>10){const r=list.slice(9);list=list.slice(0,9);list.push({label:'Übrige',val:r.reduce((s,x)=>s+x.val,0)});}return list;}
+function pieHTML(list,showVal,keep){
+ list=pieItems(list,keep);const tot=list.reduce((s,x)=>s+x.val,0);if(tot<=0)return'';
  let a=-Math.PI/2,p='';
  list.forEach((it,i)=>{const fr=it.val/tot,c=COL[i%COL.length];
   if(fr>0.9999){p+=`<circle cx="50" cy="50" r="48" fill="${c}"/>`;return;}
@@ -231,16 +268,20 @@ function render(){
  syncBadge();
  const miss=missingRates();
  const warn=miss.length?`<div class="warn">Kein Kurs für ${miss.join(', ')}. Unter <b>Einstellungen</b> aktualisieren oder manuell erfassen.</div>`:'';
+ const after=[];
 
  if(V.v==='konten'){
   head('Konten',null,'PDF',kontenPDF);
   if(D.accounts.length||D.depots.length){const o=overview();
    h+=warn+`<div class="card"><div class="row"><div class="l">Liquide</div><div class="amt total">CHF ${fCHF(o.liq)}</div></div><div class="row"><div class="l">Nicht liquide</div><div class="amt">CHF ${fCHF(o.ill)}</div></div><div class="row"><div class="l">Zinsen + Dividenden p.a.<div class="sub">Zinsen ${fCHF(o.int)} · Dividenden ${fCHF(o.div)}</div></div><div class="amt ${o.int+o.div<0?'neg':''}">CHF ${fCHF(o.int+o.div)}</div></div></div>`;}
-  h+=`<div class="sec">Konten<button onclick="accForm()">+ Neu</button></div><div class="card">`;
-  h+=D.accounts.length?sortedAccs().map(a=>{const b=bal(a.id),u=usdLine(b,a.cur),z=a.rate?` · Zins ${fRate(a.rate)} ≈ ${fmtN(accInt(a),DEC[a.cur])} p.a.`:'';return `<div class="row tap" onclick="go('konto','${a.id}')"><div class="l"><div class="t">${esc(a.name)}</div><div class="sub">${a.cur}${z}${isLiq(a)?'':' · nicht liquide'}</div></div><div class="amt"><span class="${b<0?'neg':''}">${fmt(b,a.cur)}</span>${u?`<div class="sub">${u}</div>`:''}</div></div>`;}).join(''):`<div class="empty">Noch keine Konten.<br>Tippe auf «+ Neu».</div>`;
-  h+=`</div><div class="sec">Wertschriften-Depots<button onclick="depForm()">+ Neu</button></div><div class="card">`;
-  h+=D.depots.length?D.depots.map(d=>{const bc=depByCur(d.id),k=Object.keys(bc).sort(curSort),n=positions(d.id).length,dv=curList(depDivByCur(d.id));return `<div class="row tap" onclick="go('depot','${d.id}')"><div class="l"><div class="t">${esc(d.name)}</div><div class="sub">${n} ${n===1?'Position':'Positionen'}${dv?' · Div. ≈ '+dv+' p.a.':''}${isLiq(d)?'':' · nicht liquide'}</div></div><div class="amt">${k.length?k.map((c,i)=>`<div class="${i?'sub':''}">${fmt(bc[c],c)}</div>`).join(''):'–'}</div></div>`;}).join(''):`<div class="empty">Noch keine Depots.</div>`;
+  const gA=D.accounts.length>1?GRIP:'',gD=D.depots.length>1?GRIP:'';
+  h+=`<div class="sec">Konten<button onclick="accForm()">+ Neu</button></div><div class="card" id="L-acc">`;
+  h+=D.accounts.length?D.accounts.map(a=>{const b=bal(a.id),u=usdLine(b,a.cur),z=a.rate?` · Zins ${fRate(a.rate)} ≈ ${fmtN(accInt(a),DEC[a.cur])} p.a.`:'';return `<div class="row tap" data-id="${a.id}" onclick="go('konto','${a.id}')">${gA}<div class="l"><div class="t">${esc(a.name)}</div><div class="sub">${a.cur}${z}${isLiq(a)?'':' · nicht liquide'}</div></div><div class="amt"><span class="${b<0?'neg':''}">${fmt(b,a.cur)}</span>${u?`<div class="sub">${u}</div>`:''}</div></div>`;}).join(''):`<div class="empty">Noch keine Konten.<br>Tippe auf «+ Neu».</div>`;
+  h+=`</div><div class="sec">Wertschriften-Depots<button onclick="depForm()">+ Neu</button></div><div class="card" id="L-dep">`;
+  h+=D.depots.length?D.depots.map(d=>{const bc=depByCur(d.id),k=Object.keys(bc).sort(curSort),n=positions(d.id).length,dv=curList(depDivByCur(d.id));return `<div class="row tap" data-id="${d.id}" onclick="go('depot','${d.id}')">${gD}<div class="l"><div class="t">${esc(d.name)}</div><div class="sub">${n} ${n===1?'Position':'Positionen'}${dv?' · Div. ≈ '+dv+' p.a.':''}${isLiq(d)?'':' · nicht liquide'}</div></div><div class="amt">${k.length?k.map((c,i)=>`<div class="${i?'sub':''}">${fmt(bc[c],c)}</div>`).join(''):'–'}</div></div>`;}).join(''):`<div class="empty">Noch keine Depots.</div>`;
   h+=`</div>`;
+  if(gA||gD)h+=`<div class="hint" style="padding:0 6px">Reihenfolge ändern: am Griff ⋮⋮ links ziehen.</div>`;
+  after.push(()=>enableSort($('#L-acc'),D.accounts),()=>enableSort($('#L-dep'),D.depots));
  }
 
  else if(V.v==='konto'){
@@ -279,10 +320,12 @@ function render(){
   const ti=inc.reduce((s,b)=>s+budYear(b),0),to=out.reduce((s,b)=>s+budYear(b),0);
   const yr=new Date().getFullYear();
   h+=warn+`<div class="card"><div class="row"><div class="l">Einnahmen</div><div class="amt">CHF ${fCHF(ti/12)}<div class="sub">pro Monat</div></div></div><div class="row"><div class="l">Ausgaben</div><div class="amt">CHF ${fCHF(to/12)}<div class="sub">pro Monat</div></div></div><div class="row total"><div class="l">Saldo</div><div class="amt ${ti-to<0?'neg':'pos'}">CHF ${fCHF((ti-to)/12)}<div class="sub">CHF ${fCHF(ti-to)} pro Jahr</div></div></div></div>`;
-  const rows=L=>L.map(b=>{const a=acc(b.acc),ist=budIst(b);return `<div class="row tap" onclick="budForm(bud('${b.id}'))"><div class="l"><div class="t">${esc(b.name)}</div><div class="sub">${fmt(b.amt,b.cur)} ${RHY[b.rhy]}${a?' · '+esc(a.name):''}</div></div><div class="amt">CHF ${fCHF(budYear(b)/12)}<div class="sub">Ist ${yr}: ${fCHF(ist)} / ${fCHF(budYear(b))}</div></div></div>`;}).join('');
-  h+=`<div class="sec">Einnahmen<button onclick="budForm(null,'in')">+ Neu</button></div><div class="card">${inc.length?rows(inc):'<div class="empty">Keine Einnahmen erfasst.</div>'}</div>`;
-  h+=`<div class="sec">Ausgaben<button onclick="budForm(null,'out')">+ Neu</button></div><div class="card">${out.length?rows(out):'<div class="empty">Keine Ausgaben erfasst.</div>'}</div>`;
+  const rows=L=>{const g=L.length>1?GRIP:'';return L.map(b=>{const a=acc(b.acc),ist=budIst(b);return `<div class="row tap" data-id="${b.id}" onclick="budForm(bud('${b.id}'))">${g}<div class="l"><div class="t">${esc(b.name)}</div><div class="sub">${fmt(b.amt,b.cur)} ${RHY[b.rhy]}${a?' · '+esc(a.name):''}</div>${b.note?`<div class="note">${esc(b.note)}</div>`:''}</div><div class="amt">CHF ${fCHF(budYear(b)/12)}<div class="sub">Ist ${yr}: ${fCHF(ist)} / ${fCHF(budYear(b))}</div></div></div>`;}).join('');};
+  h+=`<div class="sec">Einnahmen<button onclick="budForm(null,'in')">+ Neu</button></div><div class="card" id="L-bin">${inc.length?rows(inc):'<div class="empty">Keine Einnahmen erfasst.</div>'}</div>`;
+  h+=`<div class="sec">Ausgaben<button onclick="budForm(null,'out')">+ Neu</button></div><div class="card" id="L-bout">${out.length?rows(out):'<div class="empty">Keine Ausgaben erfasst.</div>'}</div>`;
+  if(inc.length>1||out.length>1)h+=`<div class="hint" style="padding:0 6px">Reihenfolge ändern: am Griff ⋮⋮ links ziehen.</div>`;
   if(out.length){h+=`<div class="sec">Anteile Ausgaben</div>`+pieHTML(out.map(b=>({label:b.name,val:budYear(b)})));}
+  after.push(()=>enableSort($('#L-bin'),D.budgets),()=>enableSort($('#L-bout'),D.budgets));
  }
 
  else if(V.v==='bilanz'){
@@ -292,8 +335,11 @@ function render(){
    return `<div class="row"><div class="l"><div class="t">${esc(x.name)}</div><div class="sub">${s}</div></div><div class="amt">${fCHF(x.chf)}</div></div>`;};
   h+=warn+`<div class="sub" style="padding:0 6px">Per ${dch(today())} · in CHF · Kurse vom ${ratesStand()} <a href="#" onclick="refreshRates(true);return false" style="color:var(--acc)">aktualisieren</a></div>`;
   h+=`<div class="sec">Aktiven</div><div class="card">${B.A.map(r).join('')||'<div class="empty">Keine Aktiven.</div>'}<div class="row total"><div class="l">Total Aktiven</div><div class="amt">${fCHF(B.tA)}</div></div></div>`;
-  h+=`<div class="sec">Passiven</div><div class="card">${B.P.map(r).join('')}<div class="row"><div class="l">Fremdkapital</div><div class="amt">${fCHF(B.tP)}</div></div><div class="row"><div class="l">Reinvermögen</div><div class="amt ${B.net<0?'neg':''}">${fCHF(B.net)}</div></div><div class="row total"><div class="l">Total Passiven</div><div class="amt">${fCHF(B.tP+B.net)}</div></div></div>`;
-  if(B.A.length)h+=`<div class="sec">Vermögen nach Währung (CHF)</div>`+pieHTML(assetGroups(B),true);
+  h+=`<div class="sec">Passiven</div><div class="card">${B.P.map(r).join('')}<div class="row"><div class="l">Fremdkapital</div><div class="amt">${fCHF(B.tP)}</div></div><div class="row"><div class="l">Eigenkapital (Reinvermögen)</div><div class="amt ${B.net<0?'neg':''}">${fCHF(B.net)}</div></div><div class="row total"><div class="l">Total Passiven</div><div class="amt">${fCHF(B.tP+B.net)}</div></div></div>`;
+  if(B.A.length){
+   h+=`<div class="sec">Vermögen nach Währung und Depot (CHF)</div>`+pieHTML(assetGroups(B),true);
+   if(B.tP>0||B.net>0)h+=`<div class="sec">Fremd- und Eigenkapital</div>`+pieHTML(capGroups(B),true,true)+(B.net<0?`<div class="warn">Überschuldung: Das Fremdkapital übersteigt die Aktiven um CHF ${fCHF(-B.net)}.</div>`:'');
+   h+=`<div class="sec">Aktiven liquide / nicht liquide</div>`+pieHTML(liqGroups(B),true,true);}
  }
 
  else if(V.v==='mehr'){
@@ -312,7 +358,7 @@ function render(){
   h+=`<div class="sec">Kurse<button onclick="refreshRates(true)">Aktualisieren</button></div><div class="card">`+CUR.filter(c=>c!=='CHF').map(c=>`<div class="row tap" onclick="rateForm('${c}')"><div class="l">${CURNAME[c]}</div><div class="amt">${rateText(c)}</div></div>`).join('')+`</div><div class="hint" style="padding:0 6px">Stand: ${ratesStand()}. Gold und Bitcoin in USD, umgerechnet in CHF wird erst in Bilanz und Budget. Quellen: Frankfurter (EZB), CoinGecko, gold-api.com. Antippen zum manuellen Ändern.</div>`;
   h+=`<div class="sec">Daten</div><div class="card"><div class="row tap" onclick="backup()"><div class="l">Backup speichern</div><div class="sub">JSON</div></div><div class="row tap" onclick="$('#imp').click()"><div class="l">Backup laden</div></div><div class="row tap" onclick="wipe()"><div class="l neg">Alle Daten löschen</div></div></div>`;
  }
- m.innerHTML=h;}
+ m.innerHTML=h;after.forEach(f=>f());}
 
 /* ===== Formulare ===== */
 function modal(html,mount,fixed){const ov=document.createElement('div');ov.className='ov';ov.innerHTML=`<div class="sheet">${html}</div>`;const close=()=>ov.remove();if(!fixed)ov.addEventListener('click',e=>{if(e.target===ov)close();});document.body.appendChild(ov);mount(ov.querySelector('.sheet'),close);}
@@ -320,7 +366,7 @@ const seg=(n,opts,v)=>`<div class="seg" data-n="${n}" data-v="${v}">${opts.map((
 function segInit(root,cb){root.querySelectorAll('.seg').forEach(s=>{if(s.dataset.b)return;s.dataset.b=1;s.querySelectorAll('button').forEach(b=>b.onclick=()=>{segSet(s,b.dataset.k);cb&&cb(s.dataset.n,b.dataset.k);});});}
 function segSet(s,k){s.dataset.v=k;s.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x.dataset.k===k));}
 const segVal=(root,n)=>root.querySelector(`.seg[data-n="${n}"]`).dataset.v;
-const accOpts=sel=>sortedAccs().map(a=>`<option value="${a.id}" ${a.id===sel?'selected':''}>${esc(a.name)} (${a.cur})</option>`).join('');
+const accOpts=sel=>D.accounts.map(a=>`<option value="${a.id}" ${a.id===sel?'selected':''}>${esc(a.name)} (${a.cur})</option>`).join('');
 const curOpts=sel=>CUR.map(c=>`<option value="${c}" ${c===sel?'selected':''}>${c} – ${CURNAME[c]}</option>`).join('');
 function budOpts(sel){const g=(k,l)=>{const b=D.budgets.filter(x=>x.kind===k);return b.length?`<optgroup label="${l}">${b.map(x=>`<option value="${x.id}" ${x.id===sel?'selected':''}>${esc(x.name)}</option>`).join('')}</optgroup>`:'';};return `<option value="">– wählen –</option>`+g('out','Ausgaben')+g('in','Einnahmen');}
 const btns=(del,okText='Speichern')=>`<div class="err"></div><div class="btns"><button class="btn" id="ok">${okText}</button><button class="btn s2" id="cx">Abbrechen</button>${del?'<button class="btn del" id="dl">Löschen</button>':''}</div>`;
@@ -353,17 +399,18 @@ function depForm(d){
  });}
 
 function budForm(b,kind){
- const e=!!b;b=b||{name:'',kind:kind||'out',amt:'',cur:'CHF',rhy:12,acc:''};const used=e&&D.tx.some(t=>t.bud===b.id);
+ const e=!!b;b=b||{name:'',kind:kind||'out',amt:'',cur:'CHF',rhy:12,acc:'',note:''};const used=e&&D.tx.some(t=>t.bud===b.id);
  modal(`<h2>${e?'Budget-Position bearbeiten':'Neue Budget-Position'}</h2>
  ${seg('k',[['out','Ausgabe'],['in','Einnahme']],b.kind)}
  <label>Name</label><input id="n" value="${esc(b.name)}" placeholder="z. B. Miete">
  <div class="g2"><div><label>Betrag</label><input id="a" inputmode="decimal" value="${b.amt}"></div><div><label>Währung</label><select id="c">${CUR.map(c=>`<option ${c===b.cur?'selected':''}>${c}</option>`).join('')}</select></div></div>
  <label>Rhythmus</label><select id="r">${[12,4,2,1].map(r=>`<option value="${r}" ${r==b.rhy?'selected':''}>${RHY[r]}</option>`).join('')}</select>
- <label>Zahlung in der Regel über Konto</label><select id="ac"><option value="">– kein Standardkonto –</option>${accOpts(b.acc)}</select>${btns(e)}`,(sh,close)=>{
+ <label>Zahlung in der Regel über Konto</label><select id="ac"><option value="">– kein Standardkonto –</option>${accOpts(b.acc)}</select>
+ <label>Beschreibung</label><textarea id="nt" rows="3" placeholder="optional – was gehört alles zu dieser Position?">${esc(b.note||'')}</textarea>${btns(e)}`,(sh,close)=>{
   const q=s=>sh.querySelector(s);segInit(sh);q('#cx').onclick=close;if(!e)q('#n').focus();
   q('#ok').onclick=()=>{const n=q('#n').value.trim(),a=num(q('#a').value);
    if(!n)return q('.err').textContent='Bitte einen Namen eingeben.';if(!(a>=0))return q('.err').textContent='Betrag ungültig.';
-   const v={name:n,kind:segVal(sh,'k'),amt:a,cur:q('#c').value,rhy:+q('#r').value,acc:q('#ac').value};
+   const v={name:n,kind:segVal(sh,'k'),amt:a,cur:q('#c').value,rhy:+q('#r').value,acc:q('#ac').value,note:q('#nt').value.trim()};
    if(e)Object.assign(b,v);else D.budgets.push({id:uid(),...v});save();close();render();};
   if(e)q('#dl').onclick=()=>{if(used)return q('.err').textContent='Position ist Buchungen zugewiesen und kann nicht gelöscht werden.';if(confirm('Budget-Position löschen?')){D.budgets=D.budgets.filter(x=>x!==b);save();close();render();}};
  });}
@@ -406,7 +453,7 @@ function rateForm(c){
 function txForm(t,preset={}){
  if(!D.accounts.length&&!(preset.type==='w'||(t&&t.type==='w'))){toast('Zuerst ein Konto erstellen.');return accForm();}
  const edit=!!t;let type=t?t.type:(preset.type||'b');
- const first=preset.acc||(V.v==='konto'?V.id:(sortedAccs()[0]||{}).id);
+ const first=preset.acc||(V.v==='konto'?V.id:(D.accounts[0]||{}).id);
  modal(`<h2>${edit?'Bearbeiten':'Neu'}</h2>${edit?'':seg('type',[['b','Buchung'],['t','Überweisung'],['w','Wertschrift']],type)}<div id="fb"></div>${btns(edit)}`,(sh,close)=>{
   const q=s=>sh.querySelector(s);const fb=q('#fb');let collect;
   const cur=id=>(acc(id)||{}).cur||'';
@@ -415,14 +462,14 @@ function txForm(t,preset={}){
    if(type==='b'){
     const v=t&&t.type==='b'?t:{date:today(),acc:first,amt:'',text:'',bud:''};
     fb.innerHTML=`<label>Datum</label><input id="d" type="date" value="${v.date}">
-    <label>Budget-Position</label><select id="bu">${budOpts(v.bud)}</select>${D.budgets.length?'':'<div class="hint">Noch keine Budget-Positionen – zuerst im Tab «Budget» erfassen.</div>'}
+    <label>Budget-Position</label><select id="bu">${budOpts(v.bud)}</select>${D.budgets.length?'':'<div class="hint">Noch keine Budget-Positionen – zuerst im Tab «Budget» erfassen.</div>'}<div class="hint" id="bn"></div>
     <label>Konto</label><select id="ac">${accOpts(v.acc)}</select>
     ${seg('dir',[['out','Ausgabe'],['in','Einnahme']],v.amt>0?'in':'out')}
     <label>Betrag (<span id="cu"></span>)</label><input id="am" inputmode="decimal" value="${v.amt?Math.abs(v.amt):''}"><div class="hint" id="us"></div>
     <label>Text</label><input id="tx" value="${esc(v.text)}" placeholder="optional">`;
-    const upd=()=>{const c=cur(q('#ac').value);q('#cu').textContent=c;const a=num(q('#am').value);q('#us').textContent=a>0?usdLine(a,c):'';};upd();
+    const upd=()=>{const c=cur(q('#ac').value);q('#cu').textContent=c;const a=num(q('#am').value);q('#us').textContent=a>0?usdLine(a,c):'';const b=bud(q('#bu').value);q('#bn').textContent=b&&b.note?b.note:'';};upd();
     q('#ac').onchange=upd;q('#am').oninput=upd;
-    q('#bu').onchange=()=>{const b=bud(q('#bu').value);if(!b)return;if(b.acc&&acc(b.acc))q('#ac').value=b.acc;segSet(sh.querySelector('.seg[data-n="dir"]'),b.kind);upd();};
+    q('#bu').onchange=()=>{const b=bud(q('#bu').value);if(b){if(b.acc&&acc(b.acc))q('#ac').value=b.acc;segSet(sh.querySelector('.seg[data-n="dir"]'),b.kind);}upd();};
     collect=()=>{const a=num(q('#am').value);
      if(!q('#bu').value)return'Bitte eine Budget-Position wählen.';if(!(a>0))return'Bitte einen Betrag eingeben.';
      return{type:'b',date:q('#d').value||today(),acc:q('#ac').value,bud:q('#bu').value,amt:(segVal(sh,'dir')==='out'?-1:1)*round(a,cur(q('#ac').value)),text:q('#tx').value.trim()};};
@@ -527,7 +574,7 @@ async function sync(){
   if(R.updated!==S.base){
    if(S.dirty){busy=false;syncBadge();return conflict(R,key);}
    let d;try{d=await dec(R,key);}catch(e){throw new Error('Entschlüsselung fehlgeschlagen – Passwort geändert? Neu einrichten.');}
-   D=Object.assign(blank(),d);localStorage.setItem(KEY,JSON.stringify(D));S.base=R.updated;render();
+   D=Object.assign(blank(),d);localStorage.setItem(KEY,JSON.stringify(D));S.base=R.updated;if(!document.body.classList.contains('dragging'))render();
   }else if(S.dirty){
    const up=Date.now();
    await gh('/gists/'+S.gistId,{method:'PATCH',body:JSON.stringify({files:{[FN]:{content:await enc(D,key,R.salt,up)}}})});
@@ -623,6 +670,7 @@ const HW=[278,278,355,556,556,889,667,191,333,333,389,584,278,333,278,278,556,55
 const latin=s=>String(s).replace(/[’‘]/g,"'").replace(/[“”«»]/g,'"').replace(/[–—]/g,'-').replace(/…/g,'\x85').replace(/≈/g,'~').replace(/[^\x00-\xFF]/g,'?');
 function tw(s,size,bold){let w=0;for(const ch of s){const c=ch.charCodeAt(0);w+=c>=32&&c<=126?HW[c-32]:c===0x85?1000:556;}return w*size/1000*(bold?1.07:1);}
 function fit(s,maxW,size,bold){s=latin(s);if(tw(s,size,bold)<=maxW)return s;while(s.length>1&&tw(s+'\x85',size,bold)>maxW)s=s.slice(0,-1);return s+'\x85';}
+function wrap(s,maxW,size){const out=[];for(const para of latin(s).split(/\n/)){let cur='';for(const w of para.split(/\s+/)){if(!w)continue;const t=cur?cur+' '+w:w;if(tw(t,size)>maxW&&cur){out.push(cur);cur=w;}else cur=t;}if(cur)out.push(cur);}return out;}
 class PDF{
  constructor(){this.p=[];this.np();}
  np(){this.c=[];this.p.push(this.c);this.y=790;}
@@ -634,23 +682,34 @@ class PDF{
  l(x1,y1,x2,y2,c='#d0d0cc',w=.5){this.c.push(`${this.col(c)} RG ${w} w ${x1.toFixed(2)} ${y1.toFixed(2)} m ${x2.toFixed(2)} ${y2.toFixed(2)} l S`);}
  poly(pts,c){this.c.push(`${this.col(c)} rg `+pts.map((p,i)=>`${p[0].toFixed(2)} ${p[1].toFixed(2)} ${i?'l':'m'}`).join(' ')+' h f');}
  circle(cx,cy,r,c){const pts=[];for(let i=0;i<72;i++){const a=i/72*2*Math.PI;pts.push([cx+r*Math.cos(a),cy+r*Math.sin(a)]);}this.poly(pts,c);}
- pie(title,list){
-  list=pieItems(list);const tot=list.reduce((s,x)=>s+x.val,0);if(tot<=0)return;
-  const R=80,lh=16,h=Math.max(2*R,list.length*lh)+50;this.need(h);
-  this.t(50,this.y,title,{size:12,bold:true});this.y-=20;
-  const cx=50+R,cy=this.y-R;let a=Math.PI/2;
+ donut(cx,cy,R,list,tot){
+  let a=Math.PI/2;
   list.forEach((it,i)=>{const fr=it.val/tot,c=COL[i%COL.length];
    if(fr>0.9999){this.circle(cx,cy,R,c);return;}
    const a2=a-fr*2*Math.PI,n=Math.max(2,Math.ceil(fr*120)),pts=[[cx,cy]];
    for(let k=0;k<=n;k++){const t=a+(a2-a)*k/n;pts.push([cx+R*Math.cos(t),cy+R*Math.sin(t)]);}this.poly(pts,c);a=a2;});
-  this.circle(cx,cy,R*.55,'#ffffff');
+  this.circle(cx,cy,R*.55,'#ffffff');}
+ pie(title,list){
+  list=pieItems(list);const tot=list.reduce((s,x)=>s+x.val,0);if(tot<=0)return;
+  const R=80,lh=16,h=Math.max(2*R,list.length*lh)+50;this.need(h);
+  this.t(50,this.y,title,{size:12,bold:true});this.y-=20;
+  const cx=50+R,cy=this.y-R;this.donut(cx,cy,R,list,tot);
   this.t(cx,cy+2,'CHF',{size:8,al:'c',color:'#8a8a8e'});this.t(cx,cy-10,fCHF(tot).replace(/\.\d+$/,''),{size:10,bold:true,al:'c'});
   let ly=this.y-8;const lx=cx+R+40;
   list.forEach((it,i)=>{this.r(lx,ly-1,9,9,COL[i%COL.length]);this.t(lx+16,ly,fit(it.label,200,9.5),{});this.t(480,ly,(it.val/tot*100).toFixed(1)+' %',{al:'r'});this.t(545,ly,fCHF(it.val),{al:'r',color:'#6c6f7f'});ly-=lh;});
   this.y-=h-30;}
+ pieSmall(x0,y0,title,list){
+  list=pieItems(list,true);const tot=list.reduce((s,x)=>s+x.val,0);
+  this.t(x0,y0,title,{size:11,bold:true});if(tot<=0)return;
+  const R=45,cx=x0+R+2,cy=y0-22-R;this.donut(cx,cy,R,list,tot);
+  let ly=y0-36;const lx=x0+2*R+22;
+  list.forEach((it,i)=>{this.r(lx,ly-1,9,9,COL[i%COL.length]);this.t(lx+15,ly,fit(it.label,80,9.5),{});this.t(x0+238,ly,(it.val/tot*100).toFixed(1)+' %',{al:'r',bold:true});
+   this.t(lx+15,ly-11,'CHF '+fCHF(it.val),{size:8,color:'#6c6f7f'});ly-=27;});}
+ pie2(t1,l1,t2,l2){const h=140;this.need(h);this.pieSmall(50,this.y,t1,l1);this.pieSmall(300,this.y,t2,l2);this.y-=h;}
  head(title,sub,sub2){this.t(50,this.y,title,{size:22,bold:true});this.y-=18;this.t(50,this.y,sub,{size:9.5,color:'#6c6f7f'});if(sub2){this.y-=13;this.t(50,this.y,sub2,{size:8.5,color:'#8a8a8e'});}this.y-=26;}
  section(s,cols){this.need(50);this.r(50,this.y-5,495,19,'#eef1f2');this.t(56,this.y,s,{bold:true,size:10.5,color:'#1f4e5f'});for(const[x,l]of cols)this.t(x,this.y,l,{size:8.5,al:'r',color:'#6c6f7f'});this.y-=21;}
- row(cells,o={}){this.need(16);for(const c of cells)this.t(c.x,this.y,c.s,{al:c.al,bold:o.bold||c.bold,color:c.color,size:c.size||o.size});this.y-=5;this.l(50,this.y,545,this.y,o.line||'#e2e2de',o.lw||.5);this.y-=11;}
+ row(cells,o={}){this.need(16);for(const c of cells)this.t(c.x,this.y,c.s,{al:c.al,bold:o.bold||c.bold,color:c.color,size:c.size||o.size});
+  if(o.noLine){this.y-=16;return;}this.y-=5;this.l(50,this.y,545,this.y,o.line||'#e2e2de',o.lw||.5);this.y-=11;}
  out(){
   const n=this.p.length,stamp='Erstellt am '+dch(today());
   this.p.forEach((c,i)=>{c.push(`BT /F1 8 Tf 0.55 0.55 0.56 rg 50 30 Td (${latin(stamp)}) Tj ET`);const s=`Seite ${i+1} / ${n}`;c.push(`BT /F1 8 Tf 0.55 0.55 0.56 rg ${(545-tw(s,8)).toFixed(2)} 30 Td (${s}) Tj ET`);});
@@ -716,9 +775,11 @@ function bilanzPDF(){
  p.section('Passiven',cols.slice(0,2));
  B.P.forEach(x=>line(x,''));
  p.row([{x:56,s:'Fremdkapital'},{x:490,s:fCHF(B.tP),al:'r'}]);
- p.row([{x:56,s:'Reinvermögen'},{x:490,s:fCHF(B.net),al:'r',color:B.net<0?'#b3392f':undefined}]);
+ p.row([{x:56,s:'Eigenkapital (Reinvermögen)'},{x:490,s:fCHF(B.net),al:'r',color:B.net<0?'#b3392f':undefined}]);
  p.row([{x:56,s:'Total Passiven'},{x:490,s:fCHF(B.tP+B.net),al:'r'}],{bold:true,line:'#1d1d1f',lw:.8});
- p.y-=24;p.pie('Vermögen nach Währung (Aktiven in CHF)',assetGroups(B));
+ p.y-=24;p.pie('Vermögen nach Währung und Depot (Aktiven in CHF)',assetGroups(B));
+ p.y-=6;p.pie2('Fremd- und Eigenkapital',capGroups(B),'Aktiven liquide / nicht liquide',liqGroups(B));
+ if(B.net<0){p.need(14);p.t(50,p.y,`Überschuldung: Das Fremdkapital übersteigt die Aktiven um CHF ${fCHF(-B.net)}.`,{size:8.5,color:'#b3392f'});}
  download(p.out(),'Bilanz_'+today()+'.pdf');}
 
 function budgetPDF(){
@@ -726,11 +787,16 @@ function budgetPDF(){
  if(!D.budgets.length)return toast('Noch keine Budget-Positionen.');
  p.head('Budget',`Stand ${dch(today())}  ·  Umrechnung in CHF zu Kursen vom ${ratesStand()}`,kursLine());
  const cols=[[395,'Betrag'],[470,'CHF / Monat'],[545,'CHF / Jahr']];
- const line=b=>{const a=acc(b.acc);p.row([{x:56,s:fit(b.name,140,9.5)},{x:200,s:fit((RHY[b.rhy])+(a?' · '+a.name:''),130,8.5),color:'#6c6f7f'},{x:395,s:fmt(b.amt,b.cur),al:'r',color:'#6c6f7f'},{x:470,s:fCHF(budYear(b)/12),al:'r'},{x:545,s:fCHF(budYear(b)),al:'r'}]);};
+ const line=b=>{const a=acc(b.acc),nl=b.note?wrap(b.note,470,8):[];
+  const cells=[{x:56,s:fit(b.name,140,9.5)},{x:200,s:fit((RHY[b.rhy])+(a?' · '+a.name:''),130,8.5),color:'#6c6f7f'},{x:395,s:fmt(b.amt,b.cur),al:'r',color:'#6c6f7f'},{x:470,s:fCHF(budYear(b)/12),al:'r'},{x:545,s:fCHF(budYear(b)),al:'r'}];
+  if(!nl.length)return p.row(cells);
+  p.need(16+nl.length*10);p.row(cells,{noLine:true});
+  let yy=p.y+4;for(const ln of nl){p.t(56,yy,ln,{size:8,color:'#6c6f7f'});yy-=10;}
+  const ly=yy+5;p.l(50,ly,545,ly,'#e2e2de',.5);p.y=ly-11;};
  const sum=L=>L.reduce((s,b)=>s+budYear(b),0),ti=sum(inc),to=sum(out);
  const tot=(l,v)=>{p.row([{x:56,s:l},{x:470,s:fCHF(v/12),al:'r'},{x:545,s:fCHF(v),al:'r'}],{bold:true,line:'#1d1d1f',lw:.8});p.y-=12;};
  p.section('Einnahmen',cols);inc.forEach(line);tot('Total Einnahmen',ti);
- p.section('Ausgaben',cols);[...out].sort((a,b)=>budYear(b)-budYear(a)).forEach(line);tot('Total Ausgaben',to);
+ p.section('Ausgaben',cols);out.forEach(line);tot('Total Ausgaben',to);
  p.need(30);p.row([{x:56,s:ti-to>=0?'Überschuss':'Fehlbetrag'},{x:470,s:fCHF((ti-to)/12),al:'r',color:ti-to<0?'#b3392f':'#2e7d4f'},{x:545,s:fCHF(ti-to),al:'r',color:ti-to<0?'#b3392f':'#2e7d4f'}],{bold:true,size:10.5,line:'#ffffff'});
  p.y-=20;p.pie('Anteile Budget-Positionen (Ausgaben)',out.map(b=>({label:b.name,val:budYear(b)})));
  download(p.out(),'Budget_'+today()+'.pdf');}
