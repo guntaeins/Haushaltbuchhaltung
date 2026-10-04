@@ -22,6 +22,7 @@ main{padding:0 14px 30px;max-width:720px;margin:0 auto}
 .card{background:var(--card);border-radius:14px;margin:8px 0;overflow:hidden}
 .row{display:flex;align-items:center;padding:12px 16px;border-bottom:1px solid var(--line);gap:12px;background:var(--card)}
 .row:last-child{border-bottom:0}
+#L-ba>.row:last-child,#L-bp>.row:last-child{border-bottom:1px solid var(--line)}
 .row .l{flex:1;min-width:0}
 .row.drag{position:relative;z-index:3;box-shadow:0 4px 16px rgba(0,0,0,.18);background:#fbfbfa}
 .grip{flex:none;touch-action:none;cursor:grab;color:#c4c4c0;padding:8px 4px 8px 0;margin:-8px -4px -8px -6px;display:flex;align-items:center}
@@ -105,7 +106,7 @@ const SIDE={buy:'Kauf',sell:'Verkauf',in:'Bestand'};
 const COL=['#1f4e5f','#c98b2b','#5b8c5a','#8e5572','#3d7ea6','#d1603d','#6c6f7f','#a4a65a','#4f6d7a','#b07d62','#7a9e9f'];
 const GRIP='<span class="grip" title="Ziehen zum Verschieben"><svg viewBox="0 0 12 18"><circle cx="3" cy="3" r="1.6"/><circle cx="9" cy="3" r="1.6"/><circle cx="3" cy="9" r="1.6"/><circle cx="9" cy="9" r="1.6"/><circle cx="3" cy="15" r="1.6"/><circle cx="9" cy="15" r="1.6"/></svg></span>';
 const KEY='haushaltbuch-v1',RK='haushaltbuch-kurse',SK='haushaltbuch-sync',PK='haushaltbuch-pin',FN='haushaltbuch.enc.json';
-const blank=()=>({accounts:[],depots:[],budgets:[],tx:[],prices:{},divs:{}});
+const blank=()=>({accounts:[],depots:[],budgets:[],tx:[],prices:{},divs:{},bilOrder:[]});
 const lsGet=k=>{try{return JSON.parse(localStorage.getItem(k));}catch(e){return null;}};
 let Q=lsGet(RK)||{q:{},ts:null};               // Kurse: USD/JPY in CHF, BTC/AU in USD
 let D=load();
@@ -172,6 +173,8 @@ const depDivCHF=id=>positions(id).reduce((s,p)=>s+chf(p.divYear,p.cur),0);
 const curList=o=>Object.keys(o).sort(curSort).map(c=>fmt(o[c],c)).join(' · ');
 const isLiq=x=>x.liquid!==false;
 const accInt=a=>bal(a.id)*(a.rate||0)/100;
+/* Währungen in der Reihenfolge, wie sie in der eigenen Kontenliste zuerst vorkommen */
+function curOrder(){const r=[];for(const a of D.accounts)if(!r.includes(a.cur))r.push(a.cur);return r;}
 function overview(){
  const o={liq:0,ill:0,int:0,div:0};
  for(const a of D.accounts){const c=chf(bal(a.id),a.cur);if(isLiq(a))o.liq+=c;else o.ill+=c;o.int+=chf(accInt(a),a.cur);}
@@ -179,11 +182,18 @@ function overview(){
  return o;}
 function bilanz(){
  const A=[],P=[];
- for(const a of D.accounts){const b=bal(a.id),c=chf(b,a.cur);if(b>1e-9)A.push({name:a.name,orig:b,cur:a.cur,chf:c,liq:isLiq(a)});else if(b<-1e-9)P.push({name:a.name,orig:-b,cur:a.cur,chf:-c});}
- for(const d of D.depots){const v=depVal(d.id);if(v>1e-9)A.push({name:d.name,sub:'Wertschriften-Depot',orig:v,cur:'CHF',chf:v,dep:true,liq:isLiq(d)});}
- A.sort((x,y)=>y.chf-x.chf);P.sort((x,y)=>y.chf-x.chf);
+ for(const a of D.accounts){const b=bal(a.id),c=chf(b,a.cur),key='a:'+a.id;if(b>1e-9)A.push({key,name:a.name,orig:b,cur:a.cur,chf:c,liq:isLiq(a)});else if(b<-1e-9)P.push({key,name:a.name,orig:-b,cur:a.cur,chf:-c});}
+ for(const d of D.depots){const v=depVal(d.id);if(v>1e-9)A.push({key:'d:'+d.id,name:d.name,sub:'Wertschriften-Depot',orig:v,cur:'CHF',chf:v,dep:true,liq:isLiq(d)});}
+ const ord=D.bilOrder||[],ix=k=>{const i=ord.indexOf(k);return i<0?1e9:i;};
+ const srt=(x,y)=>ix(x.key)-ix(y.key)||y.chf-x.chf;
+ A.sort(srt);P.sort(srt);
  const tA=A.reduce((s,x)=>s+x.chf,0),tP=P.reduce((s,x)=>s+x.chf,0);
  return{A,P,tA,tP,net:tA-tP};}
+function saveBilOrder(part,ids){
+ const B=bilanz();let A=B.A.map(x=>x.key),P=B.P.map(x=>x.key);
+ if(part==='A')A=ids;else P=ids;
+ const rest=(D.bilOrder||[]).filter(k=>!A.includes(k)&&!P.includes(k));
+ D.bilOrder=[...A,...P,...rest];save();}
 /* Grafiken Bilanz */
 function assetGroups(B){
  const g={};
@@ -199,7 +209,8 @@ const missingRates=()=>CUR.filter(c=>c!=='CHF'&&!rate(c)&&(D.accounts.some(a=>a.
 function reorder(arr,ids){
  const set=new Set(ids),idx=[];arr.forEach((x,i)=>{if(set.has(x.id))idx.push(i);});
  const map={};arr.forEach(x=>map[x.id]=x);idx.forEach((i,k)=>arr[i]=map[ids[k]]);}
-function enableSort(box,arr){
+const byArr=arr=>ids=>{reorder(arr,ids);save();};
+function enableSort(box,done){
  if(!box)return;
  box.querySelectorAll(':scope > .row[data-id] .grip').forEach(g=>{
   g.addEventListener('click',e=>e.stopPropagation());
@@ -218,7 +229,7 @@ function enableSort(box,arr){
    const up=()=>{removeEventListener('pointermove',mv);removeEventListener('pointerup',up);removeEventListener('pointercancel',up);
     cancelAnimationFrame(scr);row.classList.remove('drag');document.body.classList.remove('dragging');
     const ids=[...box.querySelectorAll(':scope > .row[data-id]')].map(r=>r.dataset.id);
-    if(ids.join()!==before){reorder(arr,ids);save();}};
+    if(ids.join()!==before)done(ids);};
    addEventListener('pointermove',mv);addEventListener('pointerup',up);addEventListener('pointercancel',up);
   });
  });}
@@ -260,6 +271,7 @@ let V={v:'konten'};
 function go(v,id){V={v,id};render();window.scrollTo(0,0);}
 function head(title,back,act,actFn){$('#title').textContent=title;$('#back').hidden=!back;if(back)$('#back').onclick=back;const h=$('#hact');h.hidden=!act;if(act){h.textContent=act;h.onclick=actFn;}}
 const gainHTML=p=>`<span class="${p.gain<0?'neg':'pos'}">${p.gain>=0?'+':''}${p.gainPct.toFixed(1)}% · ${p.gain>=0?'+':''}${fmtN(p.gain,DEC[p.cur])}</span>`;
+const dragHint='<div class="hint" style="padding:0 6px">Reihenfolge ändern: am Griff ⋮⋮ links ziehen.</div>';
 
 function render(){
  const m=$('#main');let h='';
@@ -280,8 +292,8 @@ function render(){
   h+=`</div><div class="sec">Wertschriften-Depots<button onclick="depForm()">+ Neu</button></div><div class="card" id="L-dep">`;
   h+=D.depots.length?D.depots.map(d=>{const bc=depByCur(d.id),k=Object.keys(bc).sort(curSort),n=positions(d.id).length,dv=curList(depDivByCur(d.id));return `<div class="row tap" data-id="${d.id}" onclick="go('depot','${d.id}')">${gD}<div class="l"><div class="t">${esc(d.name)}</div><div class="sub">${n} ${n===1?'Position':'Positionen'}${dv?' · Div. ≈ '+dv+' p.a.':''}${isLiq(d)?'':' · nicht liquide'}</div></div><div class="amt">${k.length?k.map((c,i)=>`<div class="${i?'sub':''}">${fmt(bc[c],c)}</div>`).join(''):'–'}</div></div>`;}).join(''):`<div class="empty">Noch keine Depots.</div>`;
   h+=`</div>`;
-  if(gA||gD)h+=`<div class="hint" style="padding:0 6px">Reihenfolge ändern: am Griff ⋮⋮ links ziehen.</div>`;
-  after.push(()=>enableSort($('#L-acc'),D.accounts),()=>enableSort($('#L-dep'),D.depots));
+  if(gA||gD)h+=dragHint;
+  after.push(()=>enableSort($('#L-acc'),byArr(D.accounts)),()=>enableSort($('#L-dep'),byArr(D.depots)));
  }
 
  else if(V.v==='konto'){
@@ -323,23 +335,25 @@ function render(){
   const rows=L=>{const g=L.length>1?GRIP:'';return L.map(b=>{const a=acc(b.acc),ist=budIst(b);return `<div class="row tap" data-id="${b.id}" onclick="budForm(bud('${b.id}'))">${g}<div class="l"><div class="t">${esc(b.name)}</div><div class="sub">${fmt(b.amt,b.cur)} ${RHY[b.rhy]}${a?' · '+esc(a.name):''}</div>${b.note?`<div class="note">${esc(b.note)}</div>`:''}</div><div class="amt">CHF ${fCHF(budYear(b)/12)}<div class="sub">Ist ${yr}: ${fCHF(ist)} / ${fCHF(budYear(b))}</div></div></div>`;}).join('');};
   h+=`<div class="sec">Einnahmen<button onclick="budForm(null,'in')">+ Neu</button></div><div class="card" id="L-bin">${inc.length?rows(inc):'<div class="empty">Keine Einnahmen erfasst.</div>'}</div>`;
   h+=`<div class="sec">Ausgaben<button onclick="budForm(null,'out')">+ Neu</button></div><div class="card" id="L-bout">${out.length?rows(out):'<div class="empty">Keine Ausgaben erfasst.</div>'}</div>`;
-  if(inc.length>1||out.length>1)h+=`<div class="hint" style="padding:0 6px">Reihenfolge ändern: am Griff ⋮⋮ links ziehen.</div>`;
+  if(inc.length>1||out.length>1)h+=dragHint;
   if(out.length){h+=`<div class="sec">Anteile Ausgaben</div>`+pieHTML(out.map(b=>({label:b.name,val:budYear(b)})));}
-  after.push(()=>enableSort($('#L-bin'),D.budgets),()=>enableSort($('#L-bout'),D.budgets));
+  after.push(()=>enableSort($('#L-bin'),byArr(D.budgets)),()=>enableSort($('#L-bout'),byArr(D.budgets)));
  }
 
  else if(V.v==='bilanz'){
   head('Bilanz',null,'PDF',bilanzPDF);
-  const B=bilanz();
-  const r=x=>{let s=x.sub||'';if(!s&&x.cur!=='CHF'){s=fmt(x.orig,x.cur);if(USDQ(x.cur)&&Q.q[x.cur])s+=' = USD '+fmtN(usd(x.orig,x.cur),2);}
-   return `<div class="row"><div class="l"><div class="t">${esc(x.name)}</div><div class="sub">${s}</div></div><div class="amt">${fCHF(x.chf)}</div></div>`;};
+  const B=bilanz(),gA=B.A.length>1?GRIP:'',gP=B.P.length>1?GRIP:'';
+  const r=(x,g)=>{let s=x.sub||'';if(!s&&x.cur!=='CHF'){s=fmt(x.orig,x.cur);if(USDQ(x.cur)&&Q.q[x.cur])s+=' = USD '+fmtN(usd(x.orig,x.cur),2);}
+   return `<div class="row" data-id="${x.key}">${g}<div class="l"><div class="t">${esc(x.name)}</div><div class="sub">${s}</div></div><div class="amt">${fCHF(x.chf)}</div></div>`;};
   h+=warn+`<div class="sub" style="padding:0 6px">Per ${dch(today())} · in CHF · Kurse vom ${ratesStand()} <a href="#" onclick="refreshRates(true);return false" style="color:var(--acc)">aktualisieren</a></div>`;
-  h+=`<div class="sec">Aktiven</div><div class="card">${B.A.map(r).join('')||'<div class="empty">Keine Aktiven.</div>'}<div class="row total"><div class="l">Total Aktiven</div><div class="amt">${fCHF(B.tA)}</div></div></div>`;
-  h+=`<div class="sec">Passiven</div><div class="card">${B.P.map(r).join('')}<div class="row"><div class="l">Fremdkapital</div><div class="amt">${fCHF(B.tP)}</div></div><div class="row"><div class="l">Eigenkapital (Reinvermögen)</div><div class="amt ${B.net<0?'neg':''}">${fCHF(B.net)}</div></div><div class="row total"><div class="l">Total Passiven</div><div class="amt">${fCHF(B.tP+B.net)}</div></div></div>`;
+  h+=`<div class="sec">Aktiven</div><div class="card"><div id="L-ba">${B.A.map(x=>r(x,gA)).join('')||'<div class="empty">Keine Aktiven.</div>'}</div><div class="row total"><div class="l">Total Aktiven</div><div class="amt">${fCHF(B.tA)}</div></div></div>`;
+  h+=`<div class="sec">Passiven</div><div class="card"><div id="L-bp">${B.P.map(x=>r(x,gP)).join('')}</div><div class="row"><div class="l">Fremdkapital</div><div class="amt">${fCHF(B.tP)}</div></div><div class="row"><div class="l">Eigenkapital (Reinvermögen)</div><div class="amt ${B.net<0?'neg':''}">${fCHF(B.net)}</div></div><div class="row total"><div class="l">Total Passiven</div><div class="amt">${fCHF(B.tP+B.net)}</div></div></div>`;
+  if(gA||gP)h+=dragHint;
   if(B.A.length){
    h+=`<div class="sec">Vermögen nach Währung und Depot (CHF)</div>`+pieHTML(assetGroups(B),true);
    if(B.tP>0||B.net>0)h+=`<div class="sec">Fremd- und Eigenkapital</div>`+pieHTML(capGroups(B),true,true)+(B.net<0?`<div class="warn">Überschuldung: Das Fremdkapital übersteigt die Aktiven um CHF ${fCHF(-B.net)}.</div>`:'');
    h+=`<div class="sec">Aktiven liquide / nicht liquide</div>`+pieHTML(liqGroups(B),true,true);}
+  after.push(()=>enableSort($('#L-ba'),ids=>saveBilOrder('A',ids)),()=>enableSort($('#L-bp'),ids=>saveBilOrder('P',ids)));
  }
 
  else if(V.v==='mehr'){
@@ -742,8 +756,8 @@ function kontenPDF(){
  p.row([{x:56,s:'Dividenden pro Jahr (erwartet)'},{x:545,s:fCHF(o.div),al:'r'}]);
  p.row([{x:56,s:'Erträge pro Jahr'},{x:545,s:fCHF(o.int+o.div),al:'r',color:o.int+o.div<0?red:undefined}],bold);
  p.y-=14;
- for(const c of CUR){
-  const L=D.accounts.filter(a=>a.cur===c);if(!L.length)continue;
+ for(const c of curOrder()){
+  const L=D.accounts.filter(a=>a.cur===c);
   p.section(`Konten ${c} - ${CURNAME[c]}`,[[262,'Liquide'],[318,'Zins %'],[392,'Zins p.a.'],[475,'Saldo '+c],[545,'CHF']]);
   let sb=0,si=0,sc=0;
   for(const a of L){const b=bal(a.id),z=accInt(a),ch=chf(b,c);sb+=b;si+=z;sc+=ch;
