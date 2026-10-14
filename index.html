@@ -122,10 +122,10 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--acc);outline-off
 <input type="file" id="imp" accept=".json,application/json" hidden>
 <script>
 /* ===== Grundlagen ===== */
-const CUR=['CHF','USD','JPY','BTC','AU'];
-const CURNAME={CHF:'Schweizer Franken',USD:'US-Dollar',JPY:'Japanischer Yen',BTC:'Bitcoin',AU:'Gold (Unzen)'};
-const GRPNAME={CHF:'CHF',USD:'USD',JPY:'JPY',BTC:'Bitcoin (BTC)',AU:'Gold (AU)'};
-const DEC={CHF:2,USD:2,JPY:0,BTC:8,AU:3};
+const CUR=['CHF','EUR','USD','JPY','BTC','AU'];
+const CURNAME={CHF:'Schweizer Franken',EUR:'Euro',USD:'US-Dollar',JPY:'Japanischer Yen',BTC:'Bitcoin',AU:'Gold (Unzen)'};
+const GRPNAME={CHF:'CHF',EUR:'EUR',USD:'USD',JPY:'JPY',BTC:'Bitcoin (BTC)',AU:'Gold (AU)'};
+const DEC={CHF:2,EUR:2,USD:2,JPY:0,BTC:8,AU:3};
 const RHY={12:'monatlich',4:'vierteljährlich',2:'halbjährlich',1:'jährlich'};
 const SIDE={buy:'Kauf',sell:'Verkauf',in:'Bestand'};
 const COL=['#1f4e5f','#c98b2b','#5b8c5a','#8e5572','#3d7ea6','#d1603d','#6c6f7f','#a4a65a','#4f6d7a','#b07d62','#7a9e9f'];
@@ -135,6 +135,7 @@ const blank=()=>({accounts:[],depots:[],budgets:[],tx:[],prices:{},divs:{},bilOr
 const lsGet=k=>{try{return JSON.parse(localStorage.getItem(k));}catch(e){return null;}};
 let Q=lsGet(RK)||{q:{},ts:null};               // Kurse: USD/JPY in CHF, BTC/AU in USD
 let D=load();
+(()=>{const e=lsGet('haushaltbuch-cf-eur');if(e&&e.r&&!(Q.q||{}).EUR){Q.q=Q.q||{};Q.q.EUR=e.r;saveQ();}localStorage.removeItem('haushaltbuch-cf-eur');})();
 function load(){
  const d=lsGet(KEY);if(!d||!Array.isArray(d.accounts))return blank();
  if(d.rates){ // Migration aus Version 1
@@ -158,7 +159,7 @@ const today=()=>{const d=new Date();return d.getFullYear()+'-'+String(d.getMonth
 const dch=s=>s?s.split('-').reverse().join('.'):'';
 const dts=ts=>ts?new Date(ts).toLocaleString('de-CH',{dateStyle:'short',timeStyle:'short'}):'noch nie';
 const USDQ=c=>c==='BTC'||c==='AU';
-function rate(c){const q=Q.q||{};if(c==='CHF')return 1;if(c==='USD'||c==='JPY')return q[c]||0;return(q[c]||0)*(q.USD||0);}
+function rate(c){const q=Q.q||{};if(c==='CHF')return 1;if(c==='USD'||c==='EUR'||c==='JPY')return q[c]||0;return(q[c]||0)*(q.USD||0);}
 const chf=(a,c)=>a*rate(c);
 const usd=(a,c)=>a*((Q.q||{})[c]||0);
 const usdLine=(a,c)=>USDQ(c)&&Q.q[c]?'≈ USD '+fmtN(usd(a,c),2):'';
@@ -263,18 +264,19 @@ function enableSort(box,done){
 async function getJSON(u){const r=await fetch(u,{cache:'no-store'});if(!r.ok)throw new Error(r.status);return r.json();}
 async function refreshRates(show){
  const q={...Q.q};const ok=[];let paxg=null;
- try{let j;try{j=await getJSON('https://api.frankfurter.dev/v1/latest?base=CHF&symbols=USD,JPY');}catch(e){j=await getJSON('https://api.frankfurter.app/latest?from=CHF&to=USD,JPY');}
-  if(j.rates.USD&&j.rates.JPY){q.USD=1/j.rates.USD;q.JPY=1/j.rates.JPY;ok.push('USD','JPY');}}catch(e){}
+ try{let j;try{j=await getJSON('https://api.frankfurter.dev/v1/latest?base=CHF&symbols=USD,EUR,JPY');}catch(e){j=await getJSON('https://api.frankfurter.app/latest?from=CHF&to=USD,EUR,JPY');}
+  for(const c of ['EUR','USD','JPY'])if(j.rates[c]){q[c]=1/j.rates[c];ok.push(c);}}catch(e){}
  try{const j=await getJSON('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,pax-gold&vs_currencies=usd');
   if(j.bitcoin&&j.bitcoin.usd){q.BTC=j.bitcoin.usd;ok.push('BTC');}if(j['pax-gold'])paxg=j['pax-gold'].usd;}catch(e){}
  try{const j=await getJSON('https://api.gold-api.com/price/XAU');if(j.price){q.AU=j.price;ok.push('AU');}}catch(e){}
  if(!ok.includes('AU')&&paxg){q.AU=paxg;ok.push('AU');}
  if(!ok.includes('BTC')){try{const j=await getJSON('https://api.gold-api.com/price/BTC');if(j.price){q.BTC=j.price;ok.push('BTC');}}catch(e){}}
  if(ok.length){Q={q,ts:new Date().toISOString()};saveQ();}
- if(show)toast(ok.length===4?'Kurse aktualisiert':ok.length?'Teilweise aktualisiert: '+ok.join(', '):'Keine Verbindung – Kurse unverändert');
+ if(show)toast(ok.length===5?'Kurse aktualisiert':ok.length?'Teilweise aktualisiert: '+ok.join(', '):'Keine Verbindung – Kurse unverändert');
  if(!document.body.classList.contains('dragging'))render();}
 const ratesStand=()=>dts(Q.ts);
 function rateText(c){const q=Q.q||{};
+ if(c==='EUR')return q.EUR?'1 EUR = CHF '+fmtN(q.EUR,4):'–';
  if(c==='USD')return q.USD?'1 USD = CHF '+fmtN(q.USD,4):'–';
  if(c==='JPY')return q.JPY?'100 JPY = CHF '+fmtN(q.JPY*100,4):'–';
  if(c==='BTC')return q.BTC?'1 BTC = USD '+fmtN(q.BTC,0):'–';
@@ -399,7 +401,7 @@ function render(){
   else if(!PIN)h+=`<div class="row tap" onclick="pinSet()"><div class="l">PIN-Sperre einschalten</div><div class="amt sub">Aus</div></div>`;
   else h+=`<div class="row tap" onclick="pinSet(true)"><div class="l">PIN ändern</div><div class="amt sub">Ein</div></div><div class="row tap" onclick="pinOff()"><div class="l">PIN-Sperre ausschalten</div></div>`;
   h+=`</div>`;
-  h+=`<div class="sec">Kurse<button onclick="refreshRates(true)">Aktualisieren</button></div><div class="card">`+CUR.filter(c=>c!=='CHF').map(c=>`<div class="row tap" onclick="rateForm('${c}')"><div class="l">${CURNAME[c]}</div><div class="amt">${rateText(c)}</div></div>`).join('')+`</div><div class="hint" style="padding:0 6px">Stand: ${ratesStand()}. Gold und Bitcoin in USD, umgerechnet in CHF wird erst in Bilanz und Budget. Quellen: Frankfurter (EZB), CoinGecko, gold-api.com. Antippen zum manuellen Ändern.</div>`;
+  h+=`<div class="sec">Kurse<button onclick="refreshRates(true)">Aktualisieren</button></div><div class="card">`+CUR.filter(c=>c!=='CHF').map(c=>`<div class="row tap" onclick="rateForm('${c}')"><div class="l">${CURNAME[c]}</div><div class="amt">${rateText(c)}</div></div>`).join('')+`</div><div class="hint" style="padding:0 6px">Stand: ${ratesStand()}. Gold und Bitcoin in USD, umgerechnet in CHF wird erst in Bilanz, Budget und Cashflow-Uhr. Quellen: Frankfurter (EZB), CoinGecko, gold-api.com. Antippen zum manuellen Ändern.</div>`;
   h+=`<div class="sec">Daten</div><div class="card"><div class="row tap" onclick="backup()"><div class="l">Backup speichern</div><div class="sub">JSON</div></div><div class="row tap" onclick="$('#imp').click()"><div class="l">Backup laden</div></div><div class="row tap" onclick="wipe()"><div class="l neg">Alle Daten löschen</div></div></div>`;
  }
  m.innerHTML=h;after.forEach(f=>f());}
@@ -486,7 +488,7 @@ function posForm(depId,sec){
 
 function rateForm(c){
  const usdq=USDQ(c),jpy=c==='JPY',cur=(Q.q||{})[c];
- const lbl=usdq?`1 ${c==='AU'?'Unze Gold':'BTC'} = ? USD`:jpy?'100 JPY = ? CHF':'1 USD = ? CHF';
+ const lbl=usdq?`1 ${c==='AU'?'Unze Gold':'BTC'} = ? USD`:jpy?'100 JPY = ? CHF':`1 ${c} = ? CHF`;
  const val=cur?(jpy?cur*100:cur):'';
  modal(`<h2>Kurs ${CURNAME[c]}</h2><label>${lbl}</label><input id="r" inputmode="decimal" value="${val}"><div class="hint">Wird beim nächsten automatischen Abruf überschrieben.</div>${btns(false)}`,(sh,close)=>{
   const q=s=>sh.querySelector(s);q('#cx').onclick=close;
@@ -772,7 +774,7 @@ class PDF{
   const b=new Uint8Array(out.length);for(let i=0;i<out.length;i++)b[i]=out.charCodeAt(i)&255;
   return new Blob([b],{type:'application/pdf'});}
 }
-const kursLine=()=>'Kurse: '+['USD','JPY','BTC','AU'].map(rateText).join('  ·  ');
+const kursLine=()=>'Kurse: '+['EUR','USD','JPY','BTC','AU'].map(rateText).join('  ·  ');
 
 function kontenPDF(){
  if(!D.accounts.length&&!D.depots.length)return toast('Noch keine Konten.');
@@ -848,23 +850,13 @@ function budgetPDF(){
 /* ===== Cashflow-Uhr ===== */
 const CFT={stock:['Aktie','#3d7ea6'],etf:['ETF','#4f6d7a'],bond:['Anleihen-ETF','#8e5572'],property:['Immobilie','#c98b2b'],call:['Covered Call/Put','#d1603d'],interest:['Zinslast','#b3392f'],other:['Sonstiges','#6c6f7f']};
 const CFQTY={stock:['Anzahl Aktien','Dividende pro Aktie','Stk.'],etf:['Anzahl ETF','Ausschüttung pro ETF','ETF'],bond:['Anzahl ETF','Ausschüttung pro ETF','ETF']};
-const CFCUR=['CHF','USD','EUR','JPY','BTC','AU'];
+const CFCUR=CUR;
 const CFRHY={52:'wöchentlich',12:'monatlich',4:'vierteljährlich',2:'halbjährlich',1:'jährlich'};
 const CFHINT={stock:'Dividende pro Aktie je Zahlung, in der Auszahlungswährung.',etf:'Ausschüttung pro ETF-Anteil je Zahlung, in der Ausschüttungswährung.',bond:'Ausschüttung pro Anleihen-ETF-Anteil je Zahlung, in der Ausschüttungswährung.',property:'Netto-Mietertrag je Zahlung (nach Unterhalt und Nebenkosten).',call:'Covered Call oder Cash-secured Put: Prämie und Basiswert in derselben Einheit (z. B. BTC). Die Prämie fliesst gleichmässig bis zum Ausführungsdatum ein, danach zählt die Position nicht mehr.',interest:'Zinszahlung je Fälligkeit, wird als negativer Cashflow abgezogen.',other:'Beliebiger regelmässiger Zufluss.'};
 const CFLBL={session:'Live seit Öffnen',day:'Heute',month:'Diesen Monat',year:'Seit Jahresbeginn'};
-const SEC_Y=365.25*86400,DAYMS=864e5,EK='haushaltbuch-cf-eur';
-/* EUR-Kurs nur für die Cashflow-Uhr */
-let EURQ=lsGet(EK)||{r:0,ts:null};
-const cfRate=c=>c==='EUR'?(EURQ.r||0):rate(c);
+const SEC_Y=365.25*86400,DAYMS=864e5;
+const cfRate=rate;
 const cfChf=(a,c)=>a*cfRate(c);
-async function cfEurFetch(show){
- try{let j;try{j=await getJSON('https://api.frankfurter.dev/v1/latest?base=EUR&symbols=CHF');}catch(e){j=await getJSON('https://api.frankfurter.app/latest?from=EUR&to=CHF');}
-  if(j.rates&&j.rates.CHF){EURQ={r:j.rates.CHF,ts:new Date().toISOString()};localStorage.setItem(EK,JSON.stringify(EURQ));if(show)toast('EUR-Kurs aktualisiert');if(V.v==='cashflow'&&!document.querySelector('.ov'))render();return;}}catch(e){}
- if(show)toast('Keine Verbindung – EUR-Kurs unverändert');}
-function cfEurForm(){
- modal(`<h2>Kurs Euro</h2><label>1 EUR = ? CHF</label><input id="r" inputmode="decimal" value="${EURQ.r||''}"><div class="hint">Gilt nur für die Cashflow-Uhr. Wird beim nächsten automatischen Abruf überschrieben.</div><div class="err"></div><div class="btns"><button class="btn" id="ok">Speichern</button><button class="btn s2" id="lv">Live abrufen</button><button class="btn s2" id="cx">Abbrechen</button></div>`,(sh,close)=>{
-  const q=s=>sh.querySelector(s);q('#cx').onclick=close;q('#lv').onclick=()=>{close();cfEurFetch(true);};
-  q('#ok').onclick=()=>{const v=num(q('#r').value);if(!(v>0))return q('.err').textContent='Kurs ungültig.';EURQ={r:v,ts:new Date().toISOString()};localStorage.setItem(EK,JSON.stringify(EURQ));close();render();};});}
 /* Optionen */
 const dms=s=>{const[y,m,d]=s.split('-').map(Number);return new Date(y,m-1,d).getTime();};
 const isOpt=i=>i.type==='call'&&!!i.expiry&&!!i.start;
@@ -894,14 +886,14 @@ function cfMig(){let ch=false;D.cf=D.cf||[];
   if(i.type==='bond'&&i.qty==null&&i.amt!=null){i.qty=1;i.dps=i.amt;delete i.amt;ch=true;}}
  if(ch)save();}
 function cfToggle(id){const i=cfItem(id);if(!i)return;if(i.off)delete i.off;else i.off=true;save();render();toast(i.off?`«${i.name}» pausiert – zählt nicht mit`:`«${i.name}» zählt wieder mit`);}
+function cfAll(on){D.cf.forEach(i=>{if(on)delete i.off;else i.off=true;});save();render();toast(on?'Alle Positionen zählen mit':'Alle Positionen pausiert');}
 const cfTg=i=>`<button class="tg${i.off?'':' on'}" title="${i.off?'Pausiert – antippen zum Aktivieren':'Zählt mit – antippen zum Pausieren'}" onclick="event.stopPropagation();cfToggle('${i.id}')"></button>`;
 function cfView(warn){
  cfMig();
  const ys=D.cf.map(i=>({i,y:cfYear(i)}));
  CF.reg=ys.filter(x=>!isOpt(x.i)).reduce((s,x)=>s+x.y,0);CF.net=ys.reduce((s,x)=>s+x.y,0);CF.sig=cfSig();
  const inc=ys.filter(x=>x.y>0).reduce((s,x)=>s+x.y,0),out=-ys.filter(x=>x.y<0).reduce((s,x)=>s+x.y,0);
- const eurMiss=!EURQ.r&&D.cf.some(i=>i.cur==='EUR'&&!i.off);
- let h=warn+(eurMiss?`<div class="warn">Kein EUR-Kurs. Unten bei <b>Kurs Euro</b> abrufen oder erfassen.</div>`:'');
+ let h=warn;
  h+=`<div class="card cfc"><div class="cfh"><span id="cfL">${CFLBL[CF.mode]}</span><span id="cfR"></span></div><div class="cfa" id="cfA">–</div><div class="cfx"><div><div class="sub">in JPY</div><b id="cfJ">–</b></div><div><div class="sub">in BTC</div><b id="cfB">–</b></div></div><div class="cfpb"><div id="cfP"></div></div><div class="cfpf"><span id="cfF1"></span><span id="cfF2"></span></div>${seg('cfm',[['session','Live'],['day','Heute'],['month','Monat'],['year','Jahr']],CF.mode)}</div>`;
  const k=(l,v)=>`<div><div class="sub">${l}</div><b class="${v<0?'neg':'pos'}">${cfSg(v)} ${fCHF(Math.abs(v))}</b></div>`;
  const nAct=ys.filter(x=>x.y!==0).length,nOff=D.cf.filter(i=>i.off).length;
@@ -911,7 +903,8 @@ function cfView(warn){
  if(ord.length)h+=`<div class="cfbar">${ord.map(t=>`<div style="width:${(bt[t]/tot*100).toFixed(2)}%;background:${CFT[t][1]}"></div>`).join('')}</div><div class="cflg">${ord.map(t=>`<span><i class="dot" style="background:${CFT[t][1]}"></i>${CFT[t][0]} <b>${t==='interest'?'−':''}${fCHF(bt[t]).replace(/\.\d+$/,'')}</b></span>`).join('')}</div>`;
  h+=`<div class="row"><div class="l">Zinsdeckung durch Zuflüsse</div><div class="amt ${out>0&&inc<out?'neg':'pos'}">${out>0?fmtN(inc/out,1)+' ×':'keine Zinslast'}</div></div></div>`;
  const g=D.cf.length>1?GRIP:'';
- h+=`<div class="sec">Positionen<button onclick="cfForm()">+ Neu</button></div><div class="card" id="L-cf">`;
+ const allOn=D.cf.length&&!D.cf.some(i=>i.off);
+ h+=`<div class="sec">Positionen<span>${D.cf.length>1?`<button onclick="cfAll(${allOn?0:1})">${allOn?'Alle deaktivieren':'Alle aktivieren'}</button> · `:''}<button onclick="cfForm()">+ Neu</button></span></div><div class="card" id="L-cf">`;
  h+=D.cf.length?ys.map(({i,y})=>{const T=CFT[i.type]||CFT.other,off=i.off?'<span class="bdg">pausiert</span>':'';
   if(i.type==='call'){
    if(!isOpt(i))return `<div class="row tap off" data-id="${i.id}" onclick="cfForm(cfItem('${i.id}'))">${g}<i class="dot" style="background:${T[1]}"></i><div class="l"><div class="t">${esc(i.name)}<span class="bdg ex">Daten fehlen</span></div><div class="sub">${T[0]} · Basiswert, Prämie und Datum ergänzen</div></div>${cfTg(i)}</div>`;
@@ -923,8 +916,7 @@ function cfView(warn){
   return `<div class="row tap${i.off?' off':''}" data-id="${i.id}" onclick="cfForm(cfItem('${i.id}'))">${g}<i class="dot" style="background:${T[1]}"></i><div class="l"><div class="t">${esc(i.name)}${off}</div><div class="sub">${T[0]} · ${sub} · ${CFRHY[i.freq]||''}</div></div>${val}${cfTg(i)}</div>`;
  }).join(''):`<div class="empty">Noch keine Positionen.<br>Tippe auf «+».</div>`;
  h+=`</div><div class="hint" style="padding:0 6px">Schalter rechts: Position pausieren, sie zählt dann nicht mit.${g?' Reihenfolge ändern: am Griff ⋮⋮ links ziehen.':''}</div>`;
- h+=`<div class="sec">Kurs Euro<button onclick="cfEurFetch(true)">Aktualisieren</button></div><div class="card"><div class="row tap" onclick="cfEurForm()"><div class="l">Euro<div class="sub">Stand: ${dts(EURQ.ts)} · nur für die Cashflow-Uhr</div></div><div class="amt">${EURQ.r?'1 EUR = CHF '+fmtN(EURQ.r,4):'–'}</div></div></div>`;
- h+=`<div class="hint" style="padding:0 6px">Die Uhr läuft unabhängig von Konten und Depots. Die Positionen werden mit dem Haushaltbuch gespeichert, synchronisiert und im Backup gesichert. Die übrigen Währungen werden mit den Kursen unter Einstellungen → Kurse umgerechnet.</div>`;
+ h+=`<div class="hint" style="padding:0 6px">Die Uhr läuft unabhängig von Konten und Depots. Die Positionen werden mit dem Haushaltbuch gespeichert, synchronisiert und im Backup gesichert. Alle Währungen werden mit den Kursen unter Einstellungen → Kurse umgerechnet. Optionsprämien laufen ab dem Verkaufsdatum ein.</div>`;
  return h;}
 function cfTo(m){const d=new Date();if(m==='day')return new Date(d.getFullYear(),d.getMonth(),d.getDate()+1).getTime();if(m==='month')return new Date(d.getFullYear(),d.getMonth()+1,1).getTime();if(m==='year')return new Date(d.getFullYear()+1,0,1).getTime();return 0;}
 const CFEND={day:'bis Mitternacht',month:'bis Monatsende',year:'bis Jahresende'};
@@ -932,7 +924,6 @@ const cfMoney=(v,d=2)=>(v<0?'−':'')+'CHF '+fmtN(Math.abs(v),d);
 function cfDur(ms){const t=Math.floor(ms/1000),h=Math.floor(t/3600),m=Math.floor(t%3600/60),s=t%60;return(h?h+':'+String(m).padStart(2,'0'):m)+':'+String(s).padStart(2,'0');}
 function cfStart(){
  cancelAnimationFrame(CF.raf);if(!$('#cfA'))return;
- if(!EURQ.ts||Date.now()-new Date(EURQ.ts)>3600e3)cfEurFetch(false);
  segInit($('#main'),(n,k)=>{if(n==='cfm'){CF.mode=k;$('#cfL').textContent=CFLBL[k];}});
  const loop=()=>{const a=$('#cfA');if(!a||V.v!=='cashflow')return;const now=Date.now();
   if(now-CF.chk>1000){CF.chk=now;if(cfSig()!==CF.sig&&!document.querySelector('.ov')&&!document.body.classList.contains('dragging')){render();return;}}
