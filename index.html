@@ -127,7 +127,8 @@ const CURNAME={CHF:'Schweizer Franken',EUR:'Euro',USD:'US-Dollar',JPY:'Japanisch
 const GRPNAME={CHF:'CHF',EUR:'EUR',USD:'USD',JPY:'JPY',BTC:'Bitcoin (BTC)',AU:'Gold (AU)'};
 const DEC={CHF:2,EUR:2,USD:2,JPY:0,BTC:8,AU:3};
 const RHY={12:'monatlich',4:'vierteljährlich',2:'halbjährlich',1:'jährlich'};
-const SIDE={buy:'Kauf',sell:'Verkauf',in:'Bestand'};
+const SIDE={buy:'Kauf',sell:'Verkauf',in:'Bestand',stk:'Stockdividende'};
+const NOACC=s=>s==='in'||s==='stk';
 const COL=['#1f4e5f','#c98b2b','#5b8c5a','#8e5572','#3d7ea6','#d1603d','#6c6f7f','#a4a65a','#4f6d7a','#b07d62','#7a9e9f'];
 const GRIP='<span class="grip" title="Ziehen zum Verschieben"><svg viewBox="0 0 12 18"><circle cx="3" cy="3" r="1.6"/><circle cx="9" cy="3" r="1.6"/><circle cx="3" cy="9" r="1.6"/><circle cx="9" cy="9" r="1.6"/><circle cx="3" cy="15" r="1.6"/><circle cx="9" cy="15" r="1.6"/></svg></span>';
 const KEY='haushaltbuch-v1',RK='haushaltbuch-kurse',SK='haushaltbuch-sync',PK='haushaltbuch-pin',FN='haushaltbuch.enc.json';
@@ -172,11 +173,11 @@ function toast(m){const t=document.createElement('div');t.className='toast';t.te
 
 /* ===== Berechnungen ===== */
 function effect(t,id){
- if(t.type==='b'&&t.acc===id)return t.amt;
+if((t.type==='b'||t.type==='k')&&t.acc===id)return t.amt;
  if(t.type==='t'){let s=0;if(t.from===id)s-=t.amtFrom;if(t.to===id)s+=t.amtTo;return s;}
- if(t.type==='w'&&t.acc===id&&t.side!=='in')return t.side==='buy'?-t.amtAcc:t.amtAcc;
+if(t.type==='w'&&t.acc===id&&!NOACC(t.side))return t.side==='buy'?-t.amtAcc:t.amtAcc;
  return 0;}
-const txOf=id=>D.tx.filter(t=>(t.type==='b'&&t.acc===id)||(t.type==='t'&&(t.from===id||t.to===id))||(t.type==='w'&&t.side!=='in'&&t.acc===id));
+const txOf=id=>D.tx.filter(t=>((t.type==='b'||t.type==='k')&&t.acc===id)||(t.type==='t'&&(t.from===id||t.to===id))||(t.type==='w'&&!NOACC(t.side)&&t.acc===id));
 function bal(id){const a=acc(id);let s=a?(a.open||0):0;for(const t of D.tx)s+=effect(t,id);return s;}
 function positions(depId,exclude){
  const m={};
@@ -184,7 +185,7 @@ function positions(depId,exclude){
   const p=m[t.sec]||(m[t.sec]={sec:t.sec,cur:t.cur,qty:0,cost:0,last:null,lastDate:'',fb:t.price});
   if(t.side==='sell'){const avg=p.qty?p.cost/p.qty:0;p.cost-=avg*t.qty;p.qty-=t.qty;}
   else{p.qty+=t.qty;p.cost+=t.qty*t.price;}
-  if(t.side!=='in'){p.last=t.price;p.lastDate=t.date;}
+  if(!NOACC(t.side)){p.last=t.price;p.lastDate=t.date;}
   p.cur=t.cur;});
  return Object.values(m).filter(p=>p.qty>1e-10).map(p=>{
   const pr=D.prices[depId+'|'+p.sec];
@@ -329,10 +330,11 @@ function render(){
   const b=bal(a.id),u=usdLine(b,a.cur);
   h+=`<div class="card hero"><div class="sub">Saldo</div><div class="big ${b<0?'neg':''}">${fmt(b,a.cur)}</div>${u?`<div class="sub">${u}</div>`:''}<div class="sub">${a.rate?`Zins ${fRate(a.rate)} p.a. ≈ ${fmt(accInt(a),a.cur)} pro Jahr · `:''}${isLiq(a)?'liquide':'nicht liquide'}</div></div>`;
   const list=txOf(a.id).sort(byDateDesc);
-  h+=`<div class="sec">Buchungen</div><div class="card">`;
+    h+=`<div class="sec">Buchungen<button onclick="txForm(null,{type:'k',acc:'${a.id}'})">± Korrektur</button></div><div class="card">`;
   h+=list.length?list.map(t=>{const e=effect(t,a.id);let ti,su;
    if(t.type==='b'){const bu=bud(t.bud);ti=t.text||(bu?bu.name:'Buchung');su=bu?bu.name:'';}
-   else if(t.type==='t'){const o=acc(t.from===a.id?t.to:t.from);ti=t.text||'Überweisung';su=(t.from===a.id?'→ ':'← ')+(o?o.name:'?');}
+     else if(t.type==='k'){ti=t.text||'Korrektur';su='Korrekturbuchung';}
+     else if(t.type==='t'){const o=acc(t.from===a.id?t.to:t.from);ti=t.text||'Überweisung';su=(t.from===a.id?'→ ':'← ')+(o?o.name:'?');}
    else{const d=dep(t.dep);ti=SIDE[t.side]+' '+t.sec;su=(d?d.name:'Depot')+' · '+fQty(t.qty)+' × '+fPx(t.price,t.cur)+' '+t.cur;}
    return `<div class="row tap" onclick="txForm(D.tx.find(x=>x.id==='${t.id}'))"><div class="l"><div class="t">${esc(ti)}</div><div class="sub">${dch(t.date)}${su?' · '+esc(su):''}</div></div><div class="amt ${e<0?'neg':'pos'}">${e>0?'+':''}${fmtN(e,DEC[a.cur])}</div></div>`;}).join(''):`<div class="empty">Noch keine Buchungen.</div>`;
   h+=`</div>`;
@@ -349,8 +351,8 @@ function render(){
   h+=`</div>${P.length?'<div class="hint" style="padding:0 6px">Position antippen für Details, aktuellen Kurs und Dividende.</div>':''}`;
   const T=D.tx.filter(t=>t.type==='w'&&t.dep===d.id).sort(byDateDesc);
   if(T.length){h+=`<div class="sec">Transaktionen</div><div class="card">`+T.map(t=>{const a=acc(t.acc);
-   const r=t.side==='in'?`<div class="amt">${fQty(t.qty)} Stk.</div>`:`<div class="amt ${t.side==='buy'?'neg':'pos'}">${t.side==='buy'?'-':'+'}${a?fmt(t.amtAcc,a.cur):''}</div>`;
-   return `<div class="row tap" onclick="txForm(D.tx.find(x=>x.id==='${t.id}'))"><div class="l"><div class="t">${SIDE[t.side]} ${esc(t.sec)}</div><div class="sub">${dch(t.date)} · ${fQty(t.qty)} × ${fPx(t.price,t.cur)} ${t.cur}${t.side==='in'?' · ohne Konto':a?' · '+esc(a.name):''}</div></div>${r}</div>`;}).join('')+`</div>`;}
+const r=NOACC(t.side)?`<div class="amt">+${fQty(t.qty)} Stk.</div>`:`<div class="amt ${t.side==='buy'?'neg':'pos'}">${t.side==='buy'?'-':'+'}${a?fmt(t.amtAcc,a.cur):''}</div>`;
+   return `<div class="row tap" onclick="txForm(D.tx.find(x=>x.id==='${t.id}'))"><div class="l"><div class="t">${SIDE[t.side]} ${esc(t.sec)}</div><div class="sub">${dch(t.date)} · ${t.side==='stk'?fQty(t.qty)+' Stk. gratis':fQty(t.qty)+' × '+fPx(t.price,t.cur)+' '+t.cur}${t.side==='stk'?' · ohne Konto':t.side==='in'?' · ohne Konto':a?' · '+esc(a.name):''}</div></div>${r}</div>`;}).join('')+`</div>`;}
  }
 
  else if(V.v==='budget'){
@@ -473,7 +475,7 @@ function posForm(depId,sec){
  <div class="kv"><span>Dividende pro Jahr</span><b id="dy">${p.div?fmt(p.divYear,c)+' ('+p.divYield.toFixed(1)+'%)':'–'}</b></div>
  <div class="g2"><div><label>Aktueller Kurs (${c})</label><input id="p" inputmode="decimal" value="${p.price}"></div><div><label>Dividende / Stk. / Jahr</label><input id="dv" inputmode="decimal" value="${p.div||''}" placeholder="voraussichtlich"></div></div>
  <div class="hint">${p.pdate?'Kurs vom '+dch(p.pdate):''}</div>
- <div class="err"></div><div class="btns"><button class="btn" id="ok">Speichern</button><button class="btn s2" id="tr">Kauf / Verkauf</button><button class="btn s2" id="cx">Schliessen</button></div>`,(sh,close)=>{
+ <div class="err"></div><div class="btns"><button class="btn" id="ok">Speichern</button><button class="btn s2" id="tr">Kauf / Verkauf</button><button class="btn s2" id="sd">+ Stockdividende</button><button class="btn s2" id="cx">Schliessen</button></div>`,(sh,close)=>{
   const q=s=>sh.querySelector(s);q('#cx').onclick=close;
   const upd=()=>{const v=num(q('#p').value),dv=num(q('#dv').value);
    if(v>=0){const x={...p,value:p.qty*v};x.gain=x.value-p.cost;x.gainPct=p.cost?x.gain/p.cost*100:0;q('#mw').textContent=fmt(x.value,c);q('#gv').innerHTML=gainHTML(x);}
@@ -483,7 +485,8 @@ function posForm(depId,sec){
    if(!(v>=0))return q('.err').textContent='Kurs ungültig.';if(!(dv>=0))return q('.err').textContent='Dividende ungültig.';
    if(v!==p.price||!D.prices[k])D.prices[k]={price:v,date:today()};
    D.divs=D.divs||{};if(dv)D.divs[k]=dv;else delete D.divs[k];save();close();render();};
-  q('#tr').onclick=()=>{close();txForm(null,{type:'w',dep:depId,sec,cur:c});};
+    q('#tr').onclick=()=>{close();txForm(null,{type:'w',dep:depId,sec,cur:c});};
+    q('#sd').onclick=()=>{close();txForm(null,{type:'w',dep:depId,sec,cur:c,side:'stk'});};
  });}
 
 function rateForm(c){
@@ -500,7 +503,7 @@ function txForm(t,preset={}){
  if(!D.accounts.length&&!(preset.type==='w'||(t&&t.type==='w'))){toast('Zuerst ein Konto erstellen.');return accForm();}
  const edit=!!t;let type=t?t.type:(preset.type||'b');
  const first=preset.acc||(V.v==='konto'?V.id:(D.accounts[0]||{}).id);
- modal(`<h2>${edit?'Bearbeiten':'Neu'}</h2>${edit?'':seg('type',[['b','Buchung'],['t','Überweisung'],['w','Wertschrift']],type)}<div id="fb"></div>${btns(edit)}`,(sh,close)=>{
+ modal(`<h2>${edit?'Bearbeiten':'Neu'}</h2>${edit?'':seg('type',[['b','Buchung'],['t','Überweisung'],['w','Wertschrift'],['k','Korrektur']],type)}<div id="fb"></div>${btns(edit)}`,(sh,close)=>{
   const q=s=>sh.querySelector(s);const fb=q('#fb');let collect;
   const cur=id=>(acc(id)||{}).cur||'';
   function body(){
@@ -513,15 +516,38 @@ function txForm(t,preset={}){
     ${seg('dir',[['out','Ausgabe'],['in','Einnahme']],v.amt>0?'in':'out')}
     <label>Betrag (<span id="cu"></span>)</label><input id="am" inputmode="decimal" value="${v.amt?Math.abs(v.amt):''}"><div class="hint" id="us"></div>
     <label>Text</label><input id="tx" value="${esc(v.text)}" placeholder="optional">`;
-    const upd=()=>{const c=cur(q('#ac').value);q('#cu').textContent=c;const a=num(q('#am').value);q('#us').textContent=a>0?usdLine(a,c):'';const b=bud(q('#bu').value);q('#bn').textContent=b&&b.note?b.note:'';};upd();
-    q('#ac').onchange=upd;q('#am').oninput=upd;
+      const sug=()=>{const b=bud(q('#bu').value),c=cur(q('#ac').value);if(!b||!(b.amt>0)||!c)return null;const v=b.cur===c?b.amt:(rate(c)?b.amt*rate(b.cur)/rate(c):0);return v>0?{v:round(v,c),b}:null;};
+      const upd=()=>{const c=cur(q('#ac').value);q('#cu').textContent=c;const a=num(q('#am').value);const s=sug();q('#am').placeholder=s?'Vorschlag: '+fmtN(s.v,DEC[c]):'';
+       q('#us').textContent=a>0?usdLine(a,c):s?`Budget: ${fmt(s.b.amt,s.b.cur)} ${RHY[s.b.rhy]} – beim Antippen übernommen`:'';const b=bud(q('#bu').value);q('#bn').textContent=b&&b.note?b.note:'';};upd();
+      q('#am').onfocus=()=>{if(!q('#am').value.trim()){const s=sug();if(s){q('#am').value=s.v;upd();setTimeout(()=>q('#am').select(),0);}}};
+      q('#ac').onchange=upd;q('#am').oninput=upd;
     q('#bu').onchange=()=>{const b=bud(q('#bu').value);if(b){if(b.acc&&acc(b.acc))q('#ac').value=b.acc;segSet(sh.querySelector('.seg[data-n="dir"]'),b.kind);}upd();};
     collect=()=>{const a=num(q('#am').value);
      if(!q('#bu').value)return'Bitte eine Budget-Position wählen.';if(!(a>0))return'Bitte einen Betrag eingeben.';
      return{type:'b',date:q('#d').value||today(),acc:q('#ac').value,bud:q('#bu').value,amt:(segVal(sh,'dir')==='out'?-1:1)*round(a,cur(q('#ac').value)),text:q('#tx').value.trim()};};
    }
-   else if(type==='t'){
-    if(D.accounts.length<2){fb.innerHTML='<div class="empty">Für eine Überweisung braucht es mindestens zwei Konten.</div>';q('#ok').hidden=true;return;}
+     else if(type==='k'){
+      const v=t&&t.type==='k'?t:{date:today(),acc:first,amt:'',text:''};
+      fb.innerHTML=`<div class="hint">Korrigiert nur den Kontosaldo (z. B. Rundungs- oder Kursdifferenzen). Kein Budget und kein anderes Konto wird berührt.</div>
+      <label>Datum</label><input id="d" type="date" value="${v.date}">
+      <label>Konto</label><select id="ac">${accOpts(v.acc)}</select>
+      ${seg('km',[['set','Saldo setzen auf'],['diff','Differenz ±']],edit?'diff':'set')}
+      <label id="kl"></label><input id="am" inputmode="decimal" value="${edit?v.amt:''}">
+      <div class="hint" id="kh"></div>
+      <label>Text</label><input id="tx" value="${esc(v.text)}" placeholder="optional, z. B. Kursdifferenz BTC → USD">`;
+      const base=id=>bal(id)-(edit&&t.acc===id?t.amt:0);
+      const diff=()=>{const id=q('#ac').value,c=cur(id),x=num(q('#am').value);if(isNaN(x))return NaN;return round(segVal(sh,'km')==='set'?x-base(id):x,c);};
+      const upd=()=>{const id=q('#ac').value,c=cur(id),m=segVal(sh,'km');
+       q('#kl').textContent=m==='set'?`Effektiver Saldo (${c})`:`Korrekturbetrag (${c}, minus = Abzug)`;
+       q('#am').placeholder=m==='set'?fmtN(base(id),DEC[c]):'z. B. -0.37';
+       const d=diff();q('#kh').textContent=`Saldo bisher ${fmt(base(id),c)}`+(isFinite(d)&&q('#am').value.trim()?` · Korrektur ${d>0?'+':''}${fmtN(d,DEC[c])} → neu ${fmt(base(id)+d,c)}`:'');};
+      segInit(sh,(n)=>{if(n==='km'){q('#am').value='';upd();}});upd();
+      q('#ac').onchange=upd;q('#am').oninput=upd;
+      collect=()=>{const d=diff();if(!q('#am').value.trim()||isNaN(d))return'Bitte einen Betrag eingeben.';if(d===0)return'Keine Differenz – nichts zu korrigieren.';
+       return{type:'k',date:q('#d').value||today(),acc:q('#ac').value,amt:d,text:q('#tx').value.trim()};};
+     }
+     else if(type==='t'){
+      if(D.accounts.length<2){fb.innerHTML='<div class="empty">Für eine Überweisung braucht es mindestens zwei Konten.</div>';q('#ok').hidden=true;return;}
     const v=t&&t.type==='t'?t:{date:today(),from:first,to:(D.accounts.find(a=>a.id!==first)||{}).id,amtFrom:'',amtTo:'',text:''};
     let touched=edit;
     fb.innerHTML=`<label>Datum</label><input id="d" type="date" value="${v.date}">
@@ -540,26 +566,27 @@ function txForm(t,preset={}){
    }
    else{
     if(!D.depots.length){fb.innerHTML='<div class="empty">Zuerst ein Wertschriften-Depot erstellen.<br><br><button class="btn" id="nd">Depot erstellen</button></div>';q('#ok').hidden=true;q('#nd').onclick=()=>{close();depForm();};return;}
-    const v=t&&t.type==='w'?t:{date:today(),dep:preset.dep||D.depots[0].id,side:D.accounts.length?'buy':'in',sec:preset.sec||'',qty:'',price:'',cur:preset.cur||'CHF',acc:first,amtAcc:''};
+    const v=t&&t.type==='w'?t:{date:today(),dep:preset.dep||D.depots[0].id,side:preset.side||(D.accounts.length?'buy':'in'),sec:preset.sec||'',qty:'',price:'',cur:preset.cur||'CHF',acc:first,amtAcc:''};
     let touched=edit;
     fb.innerHTML=`<label>Depot</label><select id="dp">${D.depots.map(d=>`<option value="${d.id}" ${d.id===v.dep?'selected':''}>${esc(d.name)}</option>`).join('')}</select>
-    ${seg('side',[['buy','Kauf'],['sell','Verkauf'],['in','Bestand']],v.side)}
+${seg('side',[['buy','Kauf'],['sell','Verkauf'],['in','Bestand'],['stk','Stockdiv.']],v.side)}
+      <div class="hint" id="sh">Stockdividende / Gratisaktien: Anzahl erhöht sich, kein Konto wird belastet. Der Einstandswert bleibt gleich, der Ø Einstandspreis sinkt.</div>
     <div class="hint" id="ih">Bereits vorhandene Wertschriften einbuchen – es wird kein Konto belastet.</div>
     <label>Datum</label><input id="d" type="date" value="${v.date}">
     <label>Wertschrift</label><input id="se" list="secs" value="${esc(v.sec)}" placeholder="z. B. Nestlé N" autocomplete="off"><datalist id="secs"></datalist>
     <div class="g2"><div><label>Anzahl</label><input id="qt" inputmode="decimal" value="${v.qty}"></div><div><label>Währung</label><select id="cu">${CUR.map(c=>`<option ${c===v.cur?'selected':''}>${c}</option>`).join('')}</select></div></div>
-    <div class="g2"><div><label id="lp"></label><input id="pr" inputmode="decimal" value="${v.price}"></div><div><label>Aktueller Kurs</label><input id="cp" inputmode="decimal" placeholder="optional"></div></div>
+<div class="g2"><div id="wp"><label id="lp"></label><input id="pr" inputmode="decimal" value="${v.side==='stk'?'':v.price}"></div><div><label>Aktueller Kurs</label><input id="cp" inputmode="decimal" placeholder="optional"></div></div>
     <label>Dividende / Stk. / Jahr</label><input id="dv" inputmode="decimal" placeholder="optional, voraussichtlich" value="${(D.divs||{})[v.dep+'|'+v.sec]||''}">
     <div class="hint" id="na"></div>
     <div id="ab"><label id="lk"></label><select id="ac">${accOpts(v.acc)}</select>
     <label><span id="la"></span> (<span id="ca"></span>)</label><input id="aa" inputmode="decimal" value="${v.amtAcc||''}"><div class="hint">Automatisch berechnet – Spesen/Courtage hier dazurechnen.</div></div>`;
     const sl=()=>{const P=positions(q('#dp').value,t);q('#secs').innerHTML=P.map(p=>`<option value="${esc(p.sec)}">`).join('');return P;};
     const upd=()=>{const side=segVal(sh,'side'),A=cur(q('#ac').value);
-     q('#ih').hidden=side!=='in';q('#ab').hidden=side==='in';
+     q('#ih').hidden=side!=='in';q('#sh').hidden=side!=='stk';q('#ab').hidden=NOACC(side);q('#wp').style.visibility=side==='stk'?'hidden':'';q('#qt').previousElementSibling.textContent=side==='stk'?'Zusätzliche Stück':'Anzahl';
      q('#lp').textContent=side==='buy'?'Kaufpreis / Stk.':side==='sell'?'Verkaufspreis / Stk.':'Einstandspreis / Stk.';
      q('#lk').textContent=side==='buy'?'Bezahlt von Konto':'Gutschrift auf Konto';q('#la').textContent=side==='buy'?'Belastung':'Gutschrift';q('#ca').textContent=A;
-     const n=num(q('#qt').value),pr=num(q('#pr').value);
-     if(!touched&&side!=='in'){const x=n*pr*rate(q('#cu').value);q('#aa').value=x>0&&rate(A)?round(x/rate(A),A):'';}
+      const n=num(q('#qt').value),pr=side==='stk'?0:num(q('#pr').value);
+      if(!touched&&!NOACC(side)){const x=n*pr*rate(q('#cu').value);q('#aa').value=x>0&&rate(A)?round(x/rate(A),A):'';}
      const p=sl().find(p=>p.sec===q('#se').value.trim());q('#cp').placeholder=p?fPx(p.price,p.cur):'optional';
      if(p&&p.div&&!q('#dv').value)q('#dv').value=p.div;
      let na='';if(n>0&&pr>=0){if(side==='sell'){if(p)na=`Ø Einstandspreis bleibt ${fPx(p.avg,p.cur)} · Gewinn/Verlust ${fmtN(n*(pr-p.avg),DEC[p.cur])} ${p.cur}`;}
@@ -568,16 +595,17 @@ function txForm(t,preset={}){
     segInit(sh,upd);upd();
     q('#dp').onchange=upd;q('#qt').oninput=q('#pr').oninput=q('#cu').onchange=q('#ac').onchange=upd;q('#aa').oninput=()=>touched=true;
     q('#se').oninput=q('#se').onchange=()=>{const p=sl().find(p=>p.sec===q('#se').value.trim());if(p)q('#cu').value=p.cur;upd();};
-    collect=()=>{const s=q('#se').value.trim(),n=num(q('#qt').value),p=num(q('#pr').value),side=segVal(sh,'side'),dp=q('#dp').value;
+     collect=()=>{const s=q('#se').value.trim(),n=num(q('#qt').value),side=segVal(sh,'side'),p=side==='stk'?0:num(q('#pr').value),dp=q('#dp').value;
      const cpS=q('#cp').value.trim(),cp=cpS?num(cpS):null,dvS=q('#dv').value.trim(),dv=dvS?num(dvS):null;
      if(!s)return'Bitte die Wertschrift angeben.';if(!(n>0))return'Bitte die Anzahl eingeben.';if(!(p>=0))return'Bitte den Preis pro Stück eingeben.';
      if(cpS&&!(cp>=0))return'Aktueller Kurs ungültig.';if(dvS&&!(dv>=0))return'Dividende ungültig.';
      const ex=positions(dp,t).find(x=>x.sec===s);if(ex&&ex.cur!==q('#cu').value)return`${s} wird in ${ex.cur} geführt.`;
-     if(side==='sell'){const h=ex?ex.qty:0;if(n>h+1e-9)return`Im Depot sind nur ${fQty(h)} Stück vorhanden.`;}
+      if(side==='stk'&&!ex)return'Stockdividende nur für eine bestehende Position möglich.';
+      if(side==='sell'){const h=ex?ex.qty:0;if(n>h+1e-9)return`Im Depot sind nur ${fQty(h)} Stück vorhanden.`;}
      let ac='',a=0;
-     if(side!=='in'){if(!D.accounts.length)return'Zuerst ein Konto erstellen.';ac=q('#ac').value;a=num(q('#aa').value);if(!(a>0))return'Bitte den Betrag fürs Konto eingeben.';a=round(a,cur(ac));}
+      if(!NOACC(side)){if(!D.accounts.length)return'Zuerst ein Konto erstellen.';ac=q('#ac').value;a=num(q('#aa').value);if(!(a>0))return'Bitte den Betrag fürs Konto eingeben.';a=round(a,cur(ac));}
      return{type:'w',date:q('#d').value||today(),dep:dp,side,sec:s,qty:n,price:p,cur:q('#cu').value,acc:ac,amtAcc:a,_cp:cp,_dv:dv};};
-    if(!D.accounts.length)q('.seg[data-n="side"]').querySelectorAll('button:not([data-k="in"])').forEach(b=>b.disabled=true);
+    if(!D.accounts.length)q('.seg[data-n="side"]').querySelectorAll('button:not([data-k="in"]):not([data-k="stk"])').forEach(b=>b.disabled=true);
    }
   }
   segInit(sh,(n,k)=>{if(n==='type'){type=k;body();}});
@@ -893,8 +921,17 @@ function cfView(warn){
  const ys=D.cf.map(i=>({i,y:cfYear(i)}));
  CF.reg=ys.filter(x=>!isOpt(x.i)).reduce((s,x)=>s+x.y,0);CF.net=ys.reduce((s,x)=>s+x.y,0);CF.sig=cfSig();
  const inc=ys.filter(x=>x.y>0).reduce((s,x)=>s+x.y,0),out=-ys.filter(x=>x.y<0).reduce((s,x)=>s+x.y,0);
- let h=warn;
- h+=`<div class="card cfc"><div class="cfh"><span id="cfL">${CFLBL[CF.mode]}</span><span id="cfR"></span></div><div class="cfa" id="cfA">–</div><div class="cfx"><div><div class="sub">in JPY</div><b id="cfJ">–</b></div><div><div class="sub">in BTC</div><b id="cfB">–</b></div></div><div class="cfpb"><div id="cfP"></div></div><div class="cfpf"><span id="cfF1"></span><span id="cfF2"></span></div>${seg('cfm',[['session','Live'],['day','Heute'],['month','Monat'],['year','Jahr']],CF.mode)}</div>`;
+   let h=warn;
+   {const B=bilanz(),nw=B.net,rj=rate('JPY'),rb=rate('BTC');
+    let btc=0;D.accounts.forEach(a=>{if(a.cur==='BTC')btc+=bal(a.id);});D.depots.forEach(d=>positions(d.id).forEach(p=>{if(p.cur==='BTC')btc+=p.value;}));
+    const f8=v=>fmtN(v,8);
+    h+=`<div class="card cfc"><div class="cfh"><span>Gesamtvermögen (Reinvermögen)</span><span>Kurse ${ratesStand()}</span></div>
+    <div class="cfa ${nw<0?'neg':''}"><small>CHF</small>${fCHF(nw)}</div>
+    <div class="cfx"><div><div class="sub">in JPY</div><b>${rj?fmtN(nw/rj,0)+' JPY':'kein Kurs'}</b></div>
+    <div><div class="sub">alles in BTC umgewandelt</div><b>${rb?f8(nw/rb)+' BTC':'kein Kurs'}</b></div>
+    <div><div class="sub">effektiver Bestand BTC</div><b>${f8(btc)} BTC</b></div>
+    <div><div class="sub">Anteil BTC am Vermögen</div><b>${rb&&nw>0?(btc*rb/nw*100).toFixed(1)+' %':'–'}</b></div></div></div>`;}
+   h+=`<div class="card cfc"><div class="cfh"><span id="cfL">${CFLBL[CF.mode]}</span><span id="cfR"></span></div><div class="cfa" id="cfA">–</div><div class="cfx"><div><div class="sub">in JPY</div><b id="cfJ">–</b></div><div><div class="sub">in BTC</div><b id="cfB">–</b></div></div><div class="cfpb"><div id="cfP"></div></div><div class="cfpf"><span id="cfF1"></span><span id="cfF2"></span></div>${seg('cfm',[['session','Live'],['day','Heute'],['month','Monat'],['year','Jahr']],CF.mode)}</div>`;
  const k=(l,v)=>`<div><div class="sub">${l}</div><b class="${v<0?'neg':'pos'}">${cfSg(v)} ${fCHF(Math.abs(v))}</b></div>`;
  const nAct=ys.filter(x=>x.y!==0).length,nOff=D.cf.filter(i=>i.off).length;
  h+=`<div class="sec">Netto-Cashflow in CHF</div><div class="card"><div class="kpis">${k('pro Stunde',CF.net/SEC_Y*3600)}${k('pro Tag',CF.net/365.25)}${k('pro Woche',CF.net/365.25*7)}${k('pro Monat',CF.net/12)}${k('pro Jahr',CF.net)}<div><div class="sub">Zählen mit</div><b>${nAct} / ${D.cf.length}</b>${nOff?`<div class="sub">${nOff} pausiert</div>`:''}</div></div>`;
