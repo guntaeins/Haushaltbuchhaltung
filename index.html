@@ -129,6 +129,9 @@ const DEC={CHF:2,EUR:2,USD:2,JPY:0,BTC:8,AU:3};
 const RHY={12:'monatlich',4:'vierteljährlich',2:'halbjährlich',1:'jährlich'};
 const SIDE={buy:'Kauf',sell:'Verkauf',in:'Bestand',stk:'Stockdividende'};
 const NOACC=s=>s==='in'||s==='stk';
+const jpy=v=>{let n=Math.round(Math.abs(v));const neg=v<0&&n>0;if(!n)return'0円';
+ let o='';for(const[d,k]of[[1e12,'兆'],[1e8,'億'],[1e4,'万']]){const q=Math.floor(n/d);if(q){o+=q.toLocaleString('en-US')+k;n-=q*d;}}
+ if(n)o+=n.toLocaleString('en-US');return(neg?'−':'')+o+'円';};
 const COL=['#1f4e5f','#c98b2b','#5b8c5a','#8e5572','#3d7ea6','#d1603d','#6c6f7f','#a4a65a','#4f6d7a','#b07d62','#7a9e9f'];
 const GRIP='<span class="grip" title="Ziehen zum Verschieben"><svg viewBox="0 0 12 18"><circle cx="3" cy="3" r="1.6"/><circle cx="9" cy="3" r="1.6"/><circle cx="3" cy="9" r="1.6"/><circle cx="9" cy="9" r="1.6"/><circle cx="3" cy="15" r="1.6"/><circle cx="9" cy="15" r="1.6"/></svg></span>';
 const KEY='haushaltbuch-v1',RK='haushaltbuch-kurse',SK='haushaltbuch-sync',PK='haushaltbuch-pin',FN='haushaltbuch.enc.json';
@@ -927,7 +930,7 @@ function cfView(warn){
     const f8=v=>fmtN(v,8);
     h+=`<div class="card cfc"><div class="cfh"><span>Gesamtvermögen (Reinvermögen)</span><span>Kurse ${ratesStand()}</span></div>
     <div class="cfa ${nw<0?'neg':''}"><small>CHF</small>${fCHF(nw)}</div>
-    <div class="cfx"><div><div class="sub">in JPY</div><b>${rj?fmtN(nw/rj,0)+' JPY':'kein Kurs'}</b></div>
+    <div class="cfx"><div><div class="sub">in JPY</div><b lang="ja">${rj?jpy(nw/rj):'kein Kurs'}</b>${rj?`<div class="sub">¥${Math.round(nw/rj).toLocaleString('en-US')}</div>`:''}</div>
     <div><div class="sub">alles in BTC umgewandelt</div><b>${rb?f8(nw/rb)+' BTC':'kein Kurs'}</b></div>
     <div><div class="sub">effektiver Bestand BTC</div><b>${f8(btc)} BTC</b></div>
     <div><div class="sub">Anteil BTC am Vermögen</div><b>${rb&&nw>0?(btc*rb/nw*100).toFixed(1)+' %':'–'}</b></div></div></div>`;}
